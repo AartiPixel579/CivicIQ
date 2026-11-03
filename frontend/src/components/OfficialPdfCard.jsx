@@ -26,10 +26,10 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
             <span className="flex h-7 w-7 items-center justify-center rounded bg-blue-700/60 font-mono text-xs font-bold text-amber-300 ring-1 ring-amber-400/40">
-              PV
+              ED
             </span>
             <div className="text-xs uppercase tracking-wider font-semibold text-blue-200">
-              City of Pixelvyne • Official Record
+              Township of Edison • Official Municipal Record
             </div>
           </div>
           <div className="inline-flex items-center rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/30">

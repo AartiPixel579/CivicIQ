@@ -1,0 +1,119 @@
+{
+  "department_id": "engineering",
+  "services": [
+    {
+      "id": "new_house_construction",
+      "name": "New Single-Family Residential Construction Permit",
+      "service_type": "permitting",
+      "workflow_id": "residential_zoning_permit_flow",
+      "official_form_id": "edison_zoning_app",
+      "official_form_file": "Zoning_Permit_Application_Edison.pdf",
+      "source_url": "https://www.edisonnj.org/document_center/Zoning%20ApplicationNEW.pdf",
+      "description": "Zoning review and municipal approval for building a new single-family dwelling on an approved residential lot in Edison Township.",
+      "fee_info": "$200.00 review fee (payable to 'Township of Edison')",
+      "required_documents": [
+        "Completed Edison Township Zoning Permit Application signed by owner and applicant",
+        "Three (3) copies of current property survey prepared by a NJ licensed land surveyor (scale 1\"=20' or 1\"=30')",
+        "Dimensioned building architectural plans showing proposed dwelling footprint, height, and setbacks",
+        "Grading and stormwater plot plan approved by Division of Engineering"
+      ],
+      "submission_routing": {
+        "desk": "Division of Zoning, Edison Municipal Complex",
+        "address": "100 Municipal Blvd, Edison, NJ 08817",
+        "hours": "Mon-Fri 8:00 AM - 4:30 PM",
+        "email": "zoning@edisonnj.gov"
+      }
+    },
+    {
+      "id": "residential_addition_deck_pool",
+      "name": "Residential Improvement Permit (Addition, Deck, Pool, Shed, Fence)",
+      "service_type": "permitting",
+      "workflow_id": "residential_zoning_permit_flow",
+      "official_form_id": "edison_zoning_app",
+      "official_form_file": "Zoning_Permit_Application_Edison.pdf",
+      "source_url": "https://www.edisonnj.org/document_center/Zoning%20ApplicationNEW.pdf",
+      "description": "Zoning compliance review for residential additions, unenclosed decks, inground or above-ground swimming pools, storage sheds, and fences exceeding 6 feet.",
+      "fee_info": "$50 (Fence/Shed <200 sq.ft.), $75 (Deck / Above-Ground Pool), $100 (Addition / Shed >200 sq.ft.), $150 (In-Ground Pool)",
+      "required_documents": [
+        "Completed Zoning Permit Application signed by both applicant and deed owner",
+        "Three (3) copies of signed and sealed property survey showing exact dimensions, setbacks, and proposed structure footprint",
+        "For pools: Barrier fence enclosure plan (min 4ft high with self-closing/latching gate) and filter location",
+        "For decks: Confirmation of minimum 15ft rear yard setback and lot coverage calculations"
+      ],
+      "submission_routing": {
+        "desk": "Division of Zoning, Edison Municipal Complex",
+        "address": "100 Municipal Blvd, Edison, NJ 08817",
+        "hours": "Mon-Fri 8:00 AM - 4:30 PM",
+        "email": "zoning@edisonnj.gov"
+      }
+    },
+    {
+      "id": "street_opening_excavation",
+      "name": "Street Opening & Right-of-Way Road Excavation Permit",
+      "service_type": "infrastructure",
+      "workflow_id": "street_opening_flow",
+      "official_form_id": "edison_road_open",
+      "official_form_file": "RoadOpenApp.pdf",
+      "source_url": "https://www.edisonnj.org/document_center/RoadOpenApp.pdf",
+      "description": "Permit for trenching, utility connection cuts, curb alterations, and road openings across municipal rights-of-way and streets.",
+      "fee_info": "$150.00 application filing fee + $5,000.00 pavement restoration guarantee bond / deposit",
+      "required_documents": [
+        "Completed Road Opening Application",
+        "Active State 811 'Call Before You Dig' utility locate ticket confirmation number",
+        "Trench dimension sketch (length, width, depth) and backfill specification",
+        "Certificate of Insurance ($1M general liability naming Township of Edison as certificate holder)",
+        "Edison Police Traffic Division safety review (if blocking travel lanes)"
+      ],
+      "submission_routing": {
+        "desk": "Department of Public Works, Edison Municipal Complex",
+        "address": "100 Municipal Blvd, Edison, NJ 08817",
+        "hours": "Mon-Fri 8:00 AM - 4:30 PM",
+        "email": "dpw@edisonnj.gov"
+      }
+    },
+    {
+      "id": "tree_removal_clearance",
+      "name": "Tree Removal & Protection Clearance",
+      "service_type": "environmental",
+      "workflow_id": "tree_removal_flow",
+      "official_form_id": "edison_tree_clearance",
+      "official_form_file": null,
+      "source_url": "https://www.edisonnj.org/document_center/index.php",
+      "description": "Under Edison Township Municipal Code Chapter 34 (Tree Protection), removal of trees exceeding 6 inches diameter at breast height (DBH) requires prior municipal inspection and clearance.",
+      "fee_info": "Standard residential tree removal permit fee per tree; fee waived for documented hazardous/dead trees",
+      "required_documents": [
+        "Tree removal clearance request with plot sketch showing tree locations and diameter",
+        "Certified tree expert (CTE/LTE) arboricultural evaluation if claiming dead/hazardous status",
+        "Tree replacement plan or contribution to the Edison Municipal Tree Reforestation Fund"
+      ],
+      "submission_routing": {
+        "desk": "Division of Engineering / Tree Officer Desk, Municipal Complex",
+        "address": "100 Municipal Blvd, Edison, NJ 08817",
+        "hours": "Mon-Fri 8:00 AM - 4:30 PM",
+        "email": "engineering@edisonnj.gov"
+      }
+    },
+    {
+      "id": "sewer_connection_charge",
+      "name": "Sewer Connection Charge & Tap-In Allocation",
+      "service_type": "utilities",
+      "workflow_id": "sewer_connection_flow",
+      "official_form_id": "edison_sewer_connection",
+      "official_form_file": "Sewer_Connection_Charge_Applications.pdf",
+      "source_url": "https://www.edisonnj.org/Sewer%20Connection%20Charge%20Applications.pdf",
+      "description": "Mandatory sewer utility application to evaluate wastewater flow allocation and calculate connection charges for new construction or property additions.",
+      "fee_info": "Calculated by plumbing fixture unit schedule per Edison Township municipal code",
+      "required_documents": [
+        "Completed Sewer Connection Charge Application",
+        "Plumbing isometric plan and fixture unit count breakdown",
+        "Civil site plan showing proposed sanitary lateral sewer connection to municipal main"
+      ],
+      "submission_routing": {
+        "desk": "Edison Sewer Utility Division, Municipal Complex",
+        "address": "100 Municipal Blvd, Edison, NJ 08817",
+        "hours": "Mon-Fri 8:00 AM - 4:30 PM",
+        "email": "sewer@edisonnj.gov"
+      }
+    }
+  ]
+}

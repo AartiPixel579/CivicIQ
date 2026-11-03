@@ -32,10 +32,10 @@ export default function Home() {
 
   // 1. Initialize session and load departments
   useEffect(() => {
-    let sid = localStorage.getItem('pixelvyne_session_id');
+    let sid = localStorage.getItem('civiciq_session_id');
     if (!sid) {
       sid = 'session_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
-      localStorage.setItem('pixelvyne_session_id', sid);
+      localStorage.setItem('civiciq_session_id', sid);
     }
     setSessionId(sid);
 
@@ -74,7 +74,7 @@ export default function Home() {
           const welcomeMsg = {
             id: 'welcome_' + Date.now(),
             sender: 'assistant',
-            text: `Welcome to the **City of Pixelvyne Smart Assistant**. I operate under municipal protocols to provide verified procedural guidance.\n\n• **Grounded Link RAG**: Inquiries are strictly retrieved from official municipal links.\n• **Deterministic Flowcharts**: Step-by-step prerequisite checks for permit/license issuance.\n• **Official PDF Delivery**: Standardized, authentic government forms (no AI-fabricated documents).\n\nCurrently routing to the **${data.config.name}** (${data.config.location.counter}).\nHow may I assist your municipal service request today?`,
+            text: `Welcome to **CivicIQ**, the official AI resident services assistant for the **Township of Edison, New Jersey**.\n\n• **Grounded Link RAG**: Inquiries are strictly retrieved from official Edison Township documentation and municipal codes.\n• **Deterministic Flowcharts**: Step-by-step procedural guidance for permits and municipal approvals.\n• **Official PDF Delivery**: Standardized, authentic government documents from edisonnj.org (no AI-fabricated forms).\n\nCurrently assisting for the **${data.config.name}** (${data.config.location.counter}).\nHow may I assist your municipal service request today?`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             mode: 'general',
           };
@@ -94,7 +94,7 @@ export default function Home() {
     const switchMsg = {
       id: 'switch_' + Date.now(),
       sender: 'system',
-      text: `Routed inquiry desk to ${deptId.toUpperCase()} Department.`,
+      text: `Switched service desk to ${deptId.toUpperCase()} Department.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
     setMessages(prev => [...prev, switchMsg]);
@@ -254,18 +254,18 @@ export default function Home() {
           {/* Logo & Municipal Seal */}
           <div className="flex items-center space-x-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-blue-950 font-black shadow-inner ring-2 ring-amber-300/40">
-              <span className="text-base tracking-tighter">PV</span>
+              <span className="text-base tracking-tighter">ED</span>
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold tracking-widest uppercase text-amber-400">
-                  City of Pixelvyne
+                  Township of Edison, NJ
                 </span>
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] text-emerald-300 font-mono">Service Portal Live</span>
+                <span className="text-[10px] text-emerald-300 font-mono">CivicIQ MVP Live</span>
               </div>
               <h1 className="text-base font-extrabold text-white tracking-tight leading-none">
-                Pixelvyne Smart Assistant
+                CivicIQ Resident Services Assistant
               </h1>
             </div>
           </div>
@@ -281,7 +281,7 @@ export default function Home() {
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Smart Assistant
+                Resident Assistant
               </button>
               <button
                 onClick={() => setActiveTab('documents')}
@@ -292,7 +292,7 @@ export default function Home() {
                 }`}
               >
                 <span>Document Center</span>
-                <span className="text-[10px] bg-amber-400/30 text-amber-300 px-1.5 py-0.2 rounded-full font-bold">
+                <span className="text-[10px] bg-amber-400/30 text-amber-950 font-mono px-1.5 py-0.2 rounded-full font-bold">
                   edisonnj.org
                 </span>
               </button>
@@ -378,10 +378,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="flex items-center">
             <ShieldCheck className="h-4 w-4 mr-1.5 text-blue-700" />
-            Official Government Record Portal • City of Pixelvyne • Powered by Grounded Link RAG & Deterministic Flow Engine
+            Official Municipal Records Portal • Township of Edison, New Jersey • Grounded Link RAG & Deterministic Flow Engine
           </span>
           <span className="font-mono text-slate-400">
-            Municipal Code Chapter 48 & 33 Compliant
+            Edison Township Code Chapter 37 & 39 Compliant
           </span>
         </div>
       </footer>

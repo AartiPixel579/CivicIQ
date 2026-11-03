@@ -75,7 +75,7 @@ export const PdfPreviewModal = ({
         {/* Footer Info */}
         <div className="px-5 py-2.5 bg-slate-100 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-600">
           <span className="font-mono text-[11px]">
-            Source: /departments/forms • City of Pixelvyne Records Repository
+            Source: /departments/forms • Township of Edison Records Repository (edisonnj.org)
           </span>
           <span className="font-medium text-slate-500">
             Press Esc or click Close to return to assistant

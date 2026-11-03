@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Pixelvyne Smart Assistant | City of Pixelvyne Citizen Portal',
-  description: 'Official municipal procedural web assistant with deterministic flowcharts, grounded link RAG, and official government PDF delivery.',
+  title: 'CivicIQ | Township of Edison Resident Services Assistant',
+  description: 'Official municipal procedural assistant for the Township of Edison, New Jersey with deterministic service flowcharts, grounded document RAG, and official government PDF delivery.',
 };
 
 export default function RootLayout({ children }) {

@@ -1,1 +1,1 @@
-# Pixelvyne CivicIQ Backend Application
+# Edison Township CivicIQ Backend Application

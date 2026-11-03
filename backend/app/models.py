@@ -35,6 +35,8 @@ class DepartmentConfig(BaseModel):
     contact: DepartmentContact
     submission_channels: List[SubmissionChannel] = []
     standard_processing_time: str
+    status: Optional[str] = "active"
+    active: Optional[bool] = True
 
 # --- Knowledge Link Models ---
 class KnowledgeLink(BaseModel):

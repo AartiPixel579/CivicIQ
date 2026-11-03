@@ -1,4 +1,4 @@
--- City of Pixelvyne - pgvector Initialization Script
+-- Township of Edison - pgvector Initialization Script
 -- Enables vector extension and sets up municipal chunks schema
 
 CREATE EXTENSION IF NOT EXISTS vector;

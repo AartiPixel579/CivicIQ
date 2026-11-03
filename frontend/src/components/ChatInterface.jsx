@@ -52,7 +52,7 @@ export const ChatInterface = ({
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-sm font-bold text-white tracking-wide">
-                Pixelvyne Smart Assistant
+                CivicIQ Resident Assistant
               </h2>
               <span className="text-[10px] font-medium bg-blue-700/50 text-blue-200 px-2 py-0.5 rounded-full ring-1 ring-blue-500/40">
                 Official Municipal Service Desk

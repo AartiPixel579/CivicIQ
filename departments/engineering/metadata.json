@@ -1,0 +1,24 @@
+{
+  "department_id": "engineering",
+  "municipality": "Township of Edison, New Jersey",
+  "official_source": "https://www.edisonnj.org/document_center/index.php",
+  "status": "active",
+  "mvp_primary": true,
+  "last_synced": "2026-11-03",
+  "divisions": [
+    "Division of Zoning",
+    "Division of Engineering",
+    "Department of Public Works (Road Opening)",
+    "Sewer Utility Division",
+    "Planning & Zoning Board of Adjustment"
+  ],
+  "supported_services": [
+    "residential_construction_permit",
+    "zoning_permit",
+    "street_opening_excavation",
+    "tree_removal_clearance",
+    "sewer_connection_charge",
+    "minor_subdivision",
+    "pool_and_deck_permits"
+  ]
+}

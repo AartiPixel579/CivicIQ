@@ -195,8 +195,8 @@ class SQLiteVectorStore:
             chunk_id, dept_id, url, title, category, content = r
             score = id_score_map.get(chunk_id, 0.0)
             excerpt = content.strip().replace("\n", " ")
-            if len(excerpt) > 280:
-                excerpt = excerpt[:277] + "..."
+            if len(excerpt) > 500:
+                excerpt = excerpt[:497] + "..."
 
             results.append(RagCitation(
                 url=url,

@@ -1,42 +1,39 @@
 {
   "id": "healthcare",
-  "name": "Healthcare, Food Safety & Sanitation Department",
-  "short_name": "Healthcare & Sanitation",
+  "name": "Edison Department of Health and Human Services",
+  "short_name": "Health & Human Services",
   "badge": "HLT",
   "icon": "Stethoscope",
-  "description": "Regulates retail food establishments, mobile culinary trucks, institutional sanitary licensing, health inspections, water sanitation, and vector control.",
+  "status": "planned",
+  "active": false,
+  "description": "Regulates retail food establishments, temporary vendor sanitation, vital statistics (birth/death/marriage certificates), and public health inspections for Edison Township.",
   "location": {
-    "building": "Civic Health Pavilion",
+    "building": "Edison Municipal Complex",
     "floor": "2nd Floor",
-    "counter": "Counter 7 (Food & Facility Licensing Desk)",
-    "address": "240 Wellness Parkway, Suite 210, Pixelvyne, PV 94022"
+    "counter": "Health Department Desk",
+    "address": "100 Municipal Blvd, Edison, NJ 08817"
   },
   "operating_hours": {
-    "weekdays": "Monday – Thursday: 8:00 AM – 4:00 PM; Friday: 8:00 AM – 1:00 PM",
-    "intake_cutoff": "3:30 PM (12:30 PM on Fridays)",
-    "weekends": "Closed (24/7 Foodborne Illness Emergency Line Active)"
+    "weekdays": "Monday – Friday: 8:00 AM – 4:30 PM",
+    "intake_cutoff": "4:00 PM",
+    "weekends": "Closed"
   },
   "contact": {
-    "email": "health-licensing@pixelvyne.gov",
-    "phone": "(555) 019-7241",
-    "hotline": "(555) 019-7200 (Emergency Health Dispatch)"
+    "email": "health@edisonnj.gov",
+    "phone": "(732) 248-7285",
+    "hotline": "(732) 248-7285"
   },
   "submission_channels": [
     {
       "type": "physical",
-      "name": "Health Pavilion Counter 7",
-      "details": "Present completed form, ServSafe certifications, and equipment spec sheets in person."
+      "name": "Health Department Desk",
+      "details": "Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817"
     },
     {
       "type": "email",
-      "name": "Direct Health Intake Dispatch",
-      "details": "Submit scanned PDF packet to health-licensing@pixelvyne.gov with subject [NEW APPLICATION]."
-    },
-    {
-      "type": "digital",
-      "name": "Pixelvyne Health Portal",
-      "details": "https://health.pixelvyne.gov/apply"
+      "name": "Health Department Email",
+      "details": "health@edisonnj.gov"
     }
   ],
-  "standard_processing_time": "3 to 7 business days prior to scheduling pre-opening site inspection"
+  "standard_processing_time": "10 to 15 business days for plan review and food licensing"
 }

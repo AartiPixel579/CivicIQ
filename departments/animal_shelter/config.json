@@ -1,0 +1,44 @@
+{
+  "id": "animal_shelter",
+  "name": "Edison Municipal Animal Shelter",
+  "short_name": "Animal Shelter",
+  "badge": "PET",
+  "icon": "HeartHandshake",
+  "status": "planned",
+  "active": false,
+  "description": "Edison Township Municipal Animal Shelter provides pet adoptions, pet licensing, lost-and-found animal assistance, and animal welfare services.",
+  "location": {
+    "building": "Edison Animal Shelter Facility",
+    "floor": "Ground Floor",
+    "counter": "Adoption & Intake Counter",
+    "address": "125 Municipal Blvd, Edison, NJ 08817"
+  },
+  "operating_hours": {
+    "weekdays": "Monday – Friday: 8:30 AM – 4:30 PM",
+    "intake_cutoff": "4:00 PM",
+    "weekends": "Saturday: 10:00 AM – 1:00 PM; Sunday: Closed"
+  },
+  "contact": {
+    "email": "animalshelter@edisonnj.gov",
+    "phone": "(732) 248-7258",
+    "hotline": "(732) 248-7258"
+  },
+  "submission_channels": [
+    {
+      "type": "physical",
+      "name": "Animal Shelter Counter",
+      "details": "125 Municipal Blvd, Edison, NJ 08817 (Adjacent to Municipal Complex)"
+    },
+    {
+      "type": "email",
+      "name": "Shelter Email",
+      "details": "animalshelter@edisonnj.gov"
+    },
+    {
+      "type": "web",
+      "name": "Township Animal Shelter Portal",
+      "details": "https://www.edisonnj.org/departments/animal_shelter/index.php"
+    }
+  ],
+  "standard_processing_time": "1 to 3 business days for adoption application review"
+}

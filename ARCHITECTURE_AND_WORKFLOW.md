@@ -1,17 +1,20 @@
-# CivicIQ - Pixelvyne Smart Assistant
+# CivicIQ - Edison Township Resident Services Assistant
 ## Comprehensive Architecture, Workflows & Data Flow Diagrams (DFD)
 
-This document provides complete technical architectural specifications, end-to-end workflows, and Level 0 & Level 1 Data Flow Diagrams (DFD) for the **Pixelvyne Smart Assistant** (Citizen-Facing Procedural Web Portal).
+This document provides complete technical architectural specifications, end-to-end workflows, and Level 0 & Level 1 Data Flow Diagrams (DFD) for the **CivicIQ Resident Services Assistant** for the **Township of Edison, New Jersey**.
+
+Official municipal source: `https://www.edisonnj.org/document_center/index.php`
 
 ---
 
 ## 1. High-Level System Architecture
 
 The system operates across four distinct operational layers:
-1. **Presentation Layer (Frontend)**: Next.js (App Router), React, Tailwind CSS, Lucide icons. Features dual interaction modes: conversational procedural chat and a full-text searchable Document Center tab.
-2. **API & Engine Layer (Backend)**: FastAPI (Python), housing the Intent Disambiguation Router, Deterministic Flowchart State Machine, Grounded Link RAG Engine, and Department Registry Loader.
-3. **Vector & Relational Storage Layer**: PostgreSQL with `pgvector` extension storing 128-dimensional dense vector embeddings with HNSW cosine distance indexing (`<=>`), alongside local fallback caching.
-4. **File & Document Asset Layer**: Modular departmental file organization (`/departments/<dept>/`) holding metadata (`config.json`), decision trees (`flows.json`), knowledge links (`knowledge_links.json`), and official static PDF documents (`forms/`).
+1. **Presentation Layer (Frontend)**: Next.js (App Router), React, Tailwind CSS, Lucide icons. Features dual interaction modes: conversational procedural chat with official PDF cards and a dynamic Document Center tab powered by the live inventory.
+2. **API & Service Layer (Backend)**: FastAPI (Python), housing the Intent Disambiguation Router, Deterministic Flowchart State Machine, Grounded Link RAG Engine, LLM Client (OpenAI / Gemini / Retrieval-Only Fallback), and Department Registry Loader.
+3. **Official Document Ingestion & Inventory Pipeline**: Ingests official documents from Edison Township Document Center (`edisonnj.org`), extracts text using `pypdf`, classifies scanned image PDFs (`scanned_pdf_needs_ocr`), and generates `document_inventory.json`.
+4. **Vector & Relational Storage Layer**: PostgreSQL with `pgvector` extension storing 128-dimensional dense vector embeddings with HNSW cosine distance indexing (`<=>`), alongside local resilient fallback caching (`vector_store.db`).
+5. **File & Asset Layer**: Modular departmental file organization (`/departments/<dept>/`) holding metadata (`config.json`), verified decision trees (`flows.json`), knowledge links (`knowledge_links.json`), inventory (`document_inventory.json`), and official downloaded PDF documents (`forms/`).
 
 ```mermaid
 flowchart TB
@@ -26,224 +29,191 @@ flowchart TB
     subgraph Gateway["API Gateway & Router (FastAPI)"]
         Router["Intent Router (/api/chat)"]
         DocAPI["Document Center API (/api/document-center)"]
+        InvAPI["Document Inventory API (/api/document-inventory)"]
         FlowAPI["Flow State Machine API (/api/flow/*)"]
         FormAPI["PDF Static Streaming (/api/forms/*)"]
+        IngestAPI["Admin Re-index API (/api/ingest)"]
     end
 
     subgraph Engines["Procedural & Retrieval Engines"]
-        FlowEngine["Deterministic Flow Engine\n(flows.json State Machine)"]
-        RagEngine["Grounded RAG Engine\n(Strict Anti-Hallucination)"]
-        Embedder["Dense Text Embedder\n(128-dim Normalized Vector)"]
+        FlowEngine["Deterministic Flow Engine\n(Edison Workflows: Zoning, Road, Tree, Sewer)"]
+        RagEngine["Grounded RAG Engine\n(Strict Anti-Hallucination Guardrails)"]
+        LLM["LLM Client\n(OpenAI / Gemini / Retrieval Fallback)"]
+        IngestEngine["Official Document Ingestion Pipeline\n(pypdf & OCR Classification)"]
         DeptLoader["Department Loader\n(Modular /departments/ discovery)"]
     end
 
     subgraph DataLayer["Data & Document Storage Layer"]
         PG["PostgreSQL 16 + pgvector\n(Table: municipal_knowledge_chunks)\nHNSW Cosine Index (<=>)"]
         SQLiteCache["Local SQLite Vector Fallback\n(vector_store.db)"]
-        FileStore["Static PDF Repository\n(/departments/<dept>/forms/*.pdf)"]
-        JSONStore["Department JSON Assets\n(config.json, flows.json, knowledge_links.json)"]
+        FileStore["Static Official PDF Repository\n(departments/engineering/forms/*.pdf)"]
+        JSONStore["Official Department Assets\n(config.json, flows.json, document_inventory.json)"]
     end
 
     UI --> ChatUI & DocCenterUI
     ChatUI --> Router
-    DocCenterUI --> DocAPI
+    DocCenterUI --> DocAPI & InvAPI
     ChatUI --> FlowAPI
-    PdfCard & DocCenterUI --> FormAPI
-    FormAPI --> PdfModal
-
-    Router --> FlowEngine
-    Router --> RagEngine
-    DocAPI --> JSONStore
-    FlowAPI --> FlowEngine
-    FormAPI --> FileStore
-
-    FlowEngine --> JSONStore
-    RagEngine --> Embedder
-    Embedder --> PG
-    PG -.->|Offline Fallback| SQLiteCache
-    DeptLoader --> JSONStore & FileStore
+    PdfCard --> FormAPI
+    Router --> FlowEngine & RagEngine
+    RagEngine --> LLM
+    RagEngine --> PG & SQLiteCache
+    FlowEngine --> JSONStore & FileStore
+    IngestEngine --> FileStore & JSONStore & PG & SQLiteCache
+    IngestAPI --> IngestEngine
 ```
 
 ---
 
-## 2. End-to-End Workflow & Decision Logic
+## 2. End-to-End Procedural Sequence Flow
 
-The conversational agent strictly enforces municipal rules:
-- **Informational Queries**: Routed to the Grounded RAG Engine. If vector distance is within threshold, returns answer with exact source citations (e.g. `edisonnj.org`). If unverified, strictly refuses to prevent hallucinations.
-- **Procedural Requests**: Initiates the deterministic step-by-step decision tree (`flows.json`). Mandatory prerequisites (e.g., zoning classification, deed ownership, 811 Call-Before-You-Dig locate ticket) cannot be skipped.
-- **Form Stage**: Issues the official, pre-existing static government PDF (e.g. `ENG-204`, `RoadOpenApp.pdf`, `Zoning ApplicationNEW.pdf`) with in-chat interactive checklist and intake routing.
+The following sequence diagram details the full lifecycle of a resident inquiry—from procedural intent detection through mandatory prerequisite validation and authentic Edison PDF form issuance:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Citizen as Citizen / Business Applicant
-    participant UI as Citizen Portal (Next.js)
-    participant Router as Intent Router (FastAPI)
-    participant Flow as Flow Engine (flows.json)
+    actor Resident as Edison Resident
+    participant UI as Next.js Chat Portal
+    participant API as FastAPI Router
+    participant Flow as Deterministic Flow Engine
     participant RAG as Grounded RAG Engine
-    participant PG as PostgreSQL (pgvector)
-    participant Desk as Municipal Intake Desk
+    participant LLM as LLM Client
+    participant Store as Vector Store (pgvector / SQLite)
+    participant Disk as Static PDF Storage (departments/engineering/forms)
 
-    Citizen->>UI: Submits inquiry or procedure request
-    UI->>Router: POST /api/chat { message, session_id, option_id }
+    Resident->>UI: "I want to construct a new house on my property. Which permit do I need?"
+    UI->>API: POST /api/chat {message, session_id, dept: "engineering"}
+    
+    API->>RAG: detect_flow_intent(message)
+    Note over RAG: Identifies construction intent -> Matches residential_zoning_permit_flow
+    RAG-->>API: ("engineering", "residential_zoning_permit_flow")
 
-    alt Citizen selects Option in Active Flow
-        Router->>Flow: advance_step(session_id, option_id)
-        alt Next Step is Question / Prerequisite Check
-            Flow-->>UI: Return next mandatory prerequisite question
-            UI-->>Citizen: Render step options with requirement badge
-        else Next Step is Form Issuance
-            Flow-->>UI: Return FormIssuanceDetails packet
-            UI-->>Citizen: Render Rich OfficialPdfCard (Code, Download, Checklist, Counter)
-        else Disqualification
-            Flow-->>UI: Return statutory disqualification & alternative board referral
-            UI-->>Citizen: Display explanation and recovery steps
-        end
+    API->>Flow: start_flow(session_id, "engineering", "residential_zoning_permit_flow")
+    Flow-->>API: Step 1 (Scope Selection: New Single-Family Dwelling, Addition, Pool, Shed)
+    API-->>UI: ChatResponse {mode: "flow", step: "step_scope_selection", options: [...]}
+    UI-->>Resident: Renders Step 1 Decision Options
 
-    else New Procedural Intent Detected (e.g. "apply for building permit")
-        Router->>Flow: start_flow(session_id, dept, flow_id)
-        Flow-->>UI: Return Step 1 (Mandatory Prerequisite Check)
-        UI-->>Citizen: Display initial options (Zoning verification)
+    Resident->>UI: Selects: "New Single-Family Dwelling Construction ($200.00 review fee)"
+    UI->>API: POST /api/chat {session_id, selected_option_id: "scope_new_home"}
+    API->>Flow: advance_step(session_id, "scope_new_home")
+    Flow-->>API: Step 2 Prerequisite Check: Property Survey Verification
+    API-->>UI: ChatResponse {mode: "flow", step: "step_survey_verification", is_mandatory: true}
+    UI-->>Resident: Renders Mandatory Prerequisite: Signed & Sealed Survey Required
 
-    else Informational Inquiry (e.g. "What are pool setback distances?")
-        Router->>RAG: answer_query(query, dept)
-        RAG->>PG: Search <=> Cosine Distance (1 - distance >= 0.10)
-        PG-->>RAG: Return top matching chunks & URLs
-        alt Verified Citation Found
-            RAG-->>UI: Return grounded answer with exact link citation & excerpt
-            UI-->>Citizen: Display grounded response + clickable edisonnj.org citation card
-        else No Verified Citation Found
-            RAG-->>UI: Return municipal refusal + referral to physical counter/phone
-            UI-->>Citizen: Display strict anti-hallucination notice
-        end
-    end
+    Resident->>UI: Confirms: "Yes, I have an active certified property survey"
+    UI->>API: POST /api/chat {session_id, selected_option_id: "survey_ready"}
+    API->>Flow: advance_step(session_id, "survey_ready")
+    Flow-->>API: Step 3 Prerequisite Check: Schedule A Setback Compliance
+    API-->>UI: ChatResponse {mode: "flow", step: "step_setback_compliance"}
 
-    opt Offline Form Submission
-        Citizen->>Desk: Submits printed PDF + Checklist Attachments (Counter / Email)
-        Desk-->>Citizen: Issues Municipal Intake Stamp & Tracking Receipt
-    end
+    Resident->>UI: Confirms: "Yes, proposed dwelling conforms to Schedule A setbacks"
+    UI->>API: POST /api/chat {session_id, selected_option_id: "setbacks_conform"}
+    API->>Flow: advance_step(session_id, "setbacks_conform")
+    
+    Note over Flow,Disk: Flow reaches Step: issue_edison_zoning_packet
+    Flow->>Disk: Resolves static form: Zoning_Permit_Application_Edison.pdf
+    Flow-->>API: FormIssuanceDetails {form_code, form_title, pdf_download_url, submission_routing, attachments}
+    API-->>UI: ChatResponse {mode: "flow", form_packet: FormIssuanceDetails, completed: true}
+    
+    UI-->>Resident: Renders Rich Official PDF Download Card with Preview & Desk Routing
+    Resident->>UI: Clicks "Preview Document" or "Download Official PDF"
+    UI->>API: GET /api/forms/engineering/Zoning_Permit_Application_Edison.pdf
+    API->>Disk: Stream binary PDF bytes
+    Disk-->>API: PDF Stream
+    API-->>UI: HTTP 200 FileResponse (application/pdf)
+    UI-->>Resident: Displays PDF in full-screen authentic viewer modal
 ```
 
 ---
 
-## 3. Data Flow Diagram (DFD) Level 0: Context Diagram
+## 3. Data Flow Diagram: Level 0 (Context Diagram)
 
-The Level 0 Context Diagram establishes the system boundary of the **Pixelvyne Smart Assistant (CivicIQ)** and details all inbound and outbound data flows with external entities:
-- **Citizen / Applicant**: Submits inquiries, completes guided prerequisite steps, downloads official PDF forms, and checks attachment lists.
-- **Department Intake Counter / Staff**: Receives assembled application packets, provides intake stamps, and updates office hours.
-- **External Municipal Document Center (`edisonnj.org`)**: Live external documentation repository scraped and ingested into vector embeddings.
-- **Municipal Administrator**: Updates department configurations (`config.json`), flowchart decision trees (`flows.json`), and static PDF files (`/forms/`).
+The Level 0 Context Diagram establishes the system boundary of the **CivicIQ Resident Services Assistant** and details all inbound and outbound data flows with external entities:
 
 ```mermaid
-flowchart LR
-    Citizen(["Citizen / Business Applicant"])
-    Admin(["Municipal Administrator"])
-    EdisonWeb(["Township of Edison Document Center\n(edisonnj.org)"])
-    IntakeDesk(["Department Intake Counter / Staff"])
+graph TD
+    Citizen["Citizen / Municipal Resident"]
+    Admin["Municipal Department Administrator"]
+    EdisonWeb["Official Edison Portal (edisonnj.org)"]
 
-    System[["0.0\nPixelvyne Smart Assistant\n(CivicIQ System Boundary)"]]
+    System[["0.0\nCivicIQ Resident Services Assistant\n(Township of Edison, NJ)"]]
 
-    Citizen -- "1. General Inquiries & Questions" --> System
-    Citizen -- "2. Prerequisite Answers & Option Selections" --> System
-    Citizen -- "3. Document Center Search Queries" --> System
-    System -- "4. Grounded Answers with Official Citations" --> Citizen
-    System -- "5. Guided Step-by-Step Questions" --> Citizen
-    System -- "6. Official PDF Download & Preview" --> Citizen
-    System -- "7. Mandatory Attachment Checklist" --> Citizen
-    System -- "8. Submission Routing Instructions" --> Citizen
+    Citizen -->|"1. Procedural Inquiries & Questions"| System
+    Citizen -->|"2. Workflow Step Selections"| System
+    System -->|"3. Grounded Municipal Excerpts & Citations"| Citizen
+    System -->|"4. Interactive Flowchart Options"| Citizen
+    System -->|"5. Official Static PDF Forms & Desk Routing"| Citizen
+    System -->|"6. Unsupported Department Referrals (e.g. Animal Shelter)"| Citizen
 
-    Admin -- "9. Drop new /departments/ folders" --> System
-    Admin -- "10. Update flows.json & config.json" --> System
-    Admin -- "11. Upload official static PDFs" --> System
+    Admin -->|"7. Admin Trigger Re-index (X-Admin-Key)"| System
+    System -->|"8. Ingestion & Vector Indexing Diagnostics"| Admin
 
-    EdisonWeb -- "12. Raw HTML, PDF Forms & Regulatory Text" --> System
-
-    Citizen -. "13. Completed Application Packet + Attachments" .-> IntakeDesk
-    IntakeDesk -. "14. Official Intake Stamp & Permit Number" .-> Citizen
+    EdisonWeb -->|"9. Official PDFs, Guidelines & Fee Schedules"| System
+    System -->|"10. Document Inventory & Text Embeddings"| System
 ```
 
 ---
 
-## 4. Data Flow Diagram (DFD) Level 1: Subsystem Decomposition
+## 4. Data Flow Diagram: Level 1 (Subsystem Decomposition)
 
-The Level 1 DFD decomposes the system into six core operational processes, four primary data stores, and internal data flows.
-
-### Processes:
-- **1.0 Request Ingestion & Intent Disambiguation**: Receives citizen input, parses session state, and routes to Flow Engine, RAG Engine, or Document Center API.
-- **2.0 Grounded RAG & Semantic Vector Search**: Embeds query, executes vector cosine search (`<=>`) in pgvector, validates relevance threshold, and formats citations.
-- **3.0 Deterministic Flowchart State Machine**: Traverses decision trees from `flows.json`, enforces prerequisite validation, handles branching, and tracks step history.
-- **4.0 Official Document Registry & PDF Delivery**: Retrieves static official PDF files from disk, generates download URLs, formats checklist, and supplies fill-in guidance.
-- **5.0 Departmental Intake Routing Dispatch**: Attaches exact physical counter location, building address, hours, cutoff times, and direct email dispatch (e.g. `clerk@edisonnj.gov`).
-- **6.0 Web Scraper & Vector Indexer**: Scrapes URLs from `knowledge_links.json`, chunks text into overlapping segments, computes embeddings, and stores in PostgreSQL `pgvector`.
-
-### Data Stores:
-- **D1: PostgreSQL `pgvector` Store**: Table `municipal_knowledge_chunks` holding 128-dim embeddings, text chunks, and URLs.
-- **D2: Department Registry & Decision Trees**: Modular `/departments/<dept>/` holding `config.json` and `flows.json`.
-- **D3: Static Official PDF Forms Store**: `/departments/<dept>/forms/*.pdf` containing authentic government forms.
-- **D4: Citizen Session State Store**: In-memory and browser session tracking active flow ID, step progress, and history.
-- **D5: Edison NJ Document Center Catalog**: Structured metadata for 80+ documents from `edisonnj.org/document_center/index.php`.
+The Level 1 DFD decomposes the system into its core functional processes, data stores, and interactions:
 
 ```mermaid
-flowchart TD
-    Citizen(["Citizen / Applicant"])
-    Admin(["Municipal Administrator"])
-    EdisonSite(["Edison Document Center (edisonnj.org)"])
+graph TD
+    Citizen["Citizen / Resident"]
+    Admin["Department Administrator"]
+    EdisonWeb["Edison Document Center (edisonnj.org)"]
 
-    subgraph Processes["Pixelvyne Smart Assistant Core Subsystems"]
-        P1["1.0\nRequest Ingestion &\nIntent Disambiguation"]
-        P2["2.0\nGrounded RAG &\nVector Search (pgvector)"]
-        P3["3.0\nDeterministic Flowchart\nState Machine"]
-        P4["4.0\nOfficial Document Registry\n& PDF Issuance"]
-        P5["5.0\nDepartmental Intake\nRouting Dispatch"]
-        P6["6.0\nWeb Scraper &\nVector Indexer"]
-    end
+    P1["1.0\nConversational Intake & Intent Disambiguation"]
+    P2["2.0\nDeterministic Flowchart State Machine"]
+    P3["3.0\nGrounded Link RAG & LLM Synthesis"]
+    P4["4.0\nOfficial Document Ingestion & OCR Classifier"]
+    P5["5.0\nOfficial PDF & Document Delivery Engine"]
+    P6["6.0\nDepartment Referral & Routing Handler"]
 
-    subgraph DataStores["Data Stores"]
-        D1[("D1: pgvector Database\n(municipal_knowledge_chunks)")]
-        D2[("D2: Department Registry\n(flows.json & config.json)")]
-        D3[("D3: Official PDF Forms\n(/departments/<dept>/forms/)")]
-        D4[("D4: Session State Store\n(Active Flow & Step)")]
-        D5[("D5: Document Center Catalog\n(edison_document_center.py)")]
-    end
+    D1[("D1: Department Config & Workflows\n(flows.json, config.json)")]
+    D2[("D2: Vector Knowledge Store\n(PostgreSQL pgvector / SQLite)")]
+    D3[("D3: Official PDF Storage\n(/departments/engineering/forms/)")]
+    D4[("D4: Session State Store\n(FlowSession memory cache)")]
+    D5[("D5: Document Center Inventory\n(document_inventory.json)")]
 
-    %% Process 1 Inbound
-    Citizen -->|"Input Message / Option ID"| P1
-    P1 <-->|"Read/Write Session"| D4
+    Citizen -->|"User Message / Inquiries"| P1
+    P1 -->|"Check Unsupported Dept (Cat adoption, etc.)"| P6
+    P6 -->|"Department Referral + Official Contacts"| Citizen
 
-    %% Routing logic
-    P1 -->|"Informational Query"| P2
-    P1 -->|"Procedure Request / Step Selection"| P3
-    P1 -->|"Browse / Search Documents"| D5
+    P1 -->|"Procedural Permit Intent"| P2
+    P1 -->|"Informational Knowledge Query"| P3
+    P1 -->|"Step Option Selection"| P2
 
-    %% Process 2 (RAG)
-    P2 <-->|"Cosine Query (<=>)"| D1
-    P2 -->|"Grounded Response + Citations"| Citizen
+    P2 <-->|"Read Step Logic & Prerequisites"| D1
+    P2 <-->|"Read / Write Step State"| D4
+    P2 -->|"Form Issuance Request"| P5
+    P2 -->|"Interactive Step Prompt"| Citizen
 
-    %% Process 3 (Flow Machine)
-    P3 <-->|"Fetch Step & Prerequisite Logic"| D2
-    P3 -->|"Prerequisite Questions"| Citizen
-    P3 -->|"Prerequisites Satisfied"| P4
+    P3 -->|"Query Vector Search (<=>)"| D2
+    D2 -->|"Matching Chunks & Relevance Score"| P3
+    P3 -->|"Grounded Answer with Link Citations"| Citizen
 
-    %% Process 4 (PDF Registry)
-    P4 <-->|"Stream Static PDF File"| D3
-    P4 -->|"Fetch Submission Metadata"| P5
-    P5 <-->|"Read Department Counters & Hours"| D2
-    P4 -->|"Official PDF Card + Checklist + Routing"| Citizen
+    EdisonWeb -->|"Scrape / Download Official Documents"| P4
+    P4 -->|"Store Official PDFs"| D3
+    P4 -->|"Extract Text & Chunk Chunks"| D2
+    P4 -->|"Write Metadata Inventory"| D5
 
-    %% Process 6 (Ingestion)
-    Admin -->|"Trigger Ingestion Script"| P6
-    EdisonSite -->|"HTML & Regulatory Content"| P6
-    P6 -->|"Chunked Vectors & Embeddings"| D1
+    Admin -->|"Trigger Ingestion (X-Admin-Key)"| P4
+    P4 -->|"Ingestion Summary & OCR Status"| Admin
 
-    %% Document Center Direct
-    D5 -->|"Catalog Search Results"| Citizen
+    P5 <-->|"Read Authentic Static PDF"| D3
+    P5 -->|"Stream Official PDF & Download Link"| Citizen
+    D5 -->|"Serve Document Center Catalog"| Citizen
 ```
 
 ---
 
-## 5. Security, Anti-Hallucination & Compliance Policies
+## 5. Department MVP & Expansion Model
 
-1. **Zero AI Form Generation**: The system never uses an LLM to generate, synthesize, or alter municipal application forms. It serves the exact, static, authorized government PDF files directly from the departmental repository.
-2. **Strict Grounded Inquiries**: The RAG engine compares cosine similarity against `pgvector` stored chunks. Any query falling below the strict threshold ($0.10$) triggers a graceful refusal and redirects the citizen to the physical counter desk or official telephone dispatch.
-3. **Deterministic Prerequisite Gatekeeping**: Mandatory checks (e.g. single-family residential zoning, deed ownership standing, 811 utility locate ticket) are non-bypassable code paths. If a citizen cannot satisfy a prerequisite, the flow redirects them to the appropriate appeal board (e.g. Zoning Board of Adjustment for setback variances).
-4. **Local Resilience**: In environments without a live PostgreSQL server, the unified vector store automatically transitions to local SQLite vector caching so testing and local development operate without disruption.
+| Department | Status | Municipal Office | Contacts | Key Forms / Services |
+|---|---|---|---|---|
+| **Engineering & Zoning** | **Active MVP** | Municipal Complex, 100 Municipal Blvd, 2nd Fl | (732) 248-7230 / `zoning@edisonnj.gov` | Residential Zoning Permits, Street Opening Permits, Tree Removal, Sewer Connections |
+| **Municipal Animal Shelter** | Planned (Referral Active) | 125 Municipal Blvd (Adjacent to Complex) | (732) 248-7258 / `animalshelter@edisonnj.gov` | Pet Adoptions, Pet Licenses, Lost & Found Animals |
+| **Health & Human Services** | Planned (Referral Active) | Municipal Complex, 100 Municipal Blvd, 2nd Fl | (732) 248-7285 / `health@edisonnj.gov` | Retail Food Plan Review, Sanitation Inspections, Vital Statistics |
+| **Township Clerk** | Planned (Referral Active) | Municipal Complex, 100 Municipal Blvd | (732) 248-7350 / `clerk@edisonnj.gov` | OPRA Requests, Landlord Registration, Raffle Licenses |

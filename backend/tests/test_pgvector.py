@@ -12,7 +12,7 @@ from backend.app.vector_store import vector_store
 
 class TestPgVectorImplementation(unittest.TestCase):
     def test_01_dense_embedding_shape_and_norm(self):
-        text = "City of Pixelvyne Engineering Department setback requirements"
+        text = "Township of Edison Engineering Department setback requirements"
         vec = embedder.embed_text(text)
         self.assertEqual(vec.shape, (EMBEDDING_DIM,))
         self.assertEqual(vec.dtype, np.float32)

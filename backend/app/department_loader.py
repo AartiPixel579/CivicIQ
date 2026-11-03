@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Dict, List, Optional
 from pathlib import Path
-from .config import DEPARTMENTS_DIR
+from .config import DEPARTMENTS_DIR, ACTIVE_DEPARTMENTS
 from .models import DepartmentConfig, FlowDefinition, KnowledgeLink
 
 logger = logging.getLogger("department_loader")
@@ -14,6 +14,7 @@ class DepartmentRegistry:
         self.departments: Dict[str, DepartmentConfig] = {}
         self.flows: Dict[str, Dict[str, FlowDefinition]] = {} # dept_id -> {flow_id: FlowDefinition}
         self.knowledge_links: Dict[str, List[KnowledgeLink]] = {} # dept_id -> list of links
+        self.services: Dict[str, List[Dict]] = {} # dept_id -> list of services
         self.load_all()
 
     def reload(self):
@@ -21,6 +22,7 @@ class DepartmentRegistry:
         self.departments.clear()
         self.flows.clear()
         self.knowledge_links.clear()
+        self.services.clear()
         self.load_all()
 
     def load_all(self):
@@ -46,8 +48,10 @@ class DepartmentRegistry:
             except Exception as e:
                 logger.error(f"Error loading config for {dept_id}: {e}")
 
-        # 2. Flows
+        # 2. Flows (check flows.json or workflows/flows.json)
         flows_path = dept_path / "flows.json"
+        if not flows_path.exists():
+            flows_path = dept_path / "workflows" / "flows.json"
         if flows_path.exists():
             try:
                 with open(flows_path, "r", encoding="utf-8") as f:
@@ -72,6 +76,27 @@ class DepartmentRegistry:
                     self.knowledge_links[dept_id] = links_list
             except Exception as e:
                 logger.error(f"Error loading links for {dept_id}: {e}")
+
+        # 4. Services catalog (if exists)
+        services_path = dept_path / "services" / "services.json"
+        if services_path.exists():
+            try:
+                with open(services_path, "r", encoding="utf-8") as f:
+                    services_data = json.load(f)
+                    self.services[dept_id] = services_data.get("services", [])
+            except Exception as e:
+                logger.error(f"Error loading services for {dept_id}: {e}")
+
+    def is_active(self, dept_id: str) -> bool:
+        """Checks if a department is active in the current MVP."""
+        if dept_id in ACTIVE_DEPARTMENTS:
+            dept = self.departments.get(dept_id)
+            if dept and dept.active is not False:
+                return True
+        return False
+
+    def get_services_for_dept(self, dept_id: str) -> List[Dict]:
+        return self.services.get(dept_id, [])
 
     def get_departments(self) -> List[DepartmentConfig]:
         return list(self.departments.values())

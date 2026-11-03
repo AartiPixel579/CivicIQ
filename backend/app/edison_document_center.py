@@ -236,3 +236,43 @@ EDISON_DOCUMENT_CATALOG = [
         "fee_summary": "$75 annual contractor registration"
     }
 ]
+
+import json
+from pathlib import Path
+from .config import DEPARTMENTS_DIR
+
+def get_document_inventory() -> list:
+    """Loads document inventory from departments/engineering/document_inventory.json if available."""
+    inv_file = DEPARTMENTS_DIR / "engineering" / "document_inventory.json"
+    if inv_file.exists():
+        try:
+            with open(inv_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("documents", [])
+        except Exception:
+            pass
+    return EDISON_DOCUMENT_CATALOG
+
+def find_document_by_file(filename: str) -> dict | None:
+    """Finds document entry by local filename."""
+    docs = get_document_inventory()
+    for d in docs:
+        if d.get("local_filename") == filename or d.get("local_file") == filename:
+            return d
+    return None
+
+def find_matching_official_forms(query: str, department_id: str = "engineering") -> list:
+    """Finds relevant official documents matching query keywords."""
+    docs = get_document_inventory()
+    q = query.lower()
+    matches = []
+    for d in docs:
+        if department_id and d.get("department") != department_id and d.get("department_id") != department_id:
+            continue
+        title = d.get("title", "").lower()
+        desc = (d.get("official_summary") or d.get("description", "")).lower()
+        service = d.get("service_or_permit_name", "").lower()
+        if any(w in title or w in desc or w in service for w in q.split() if len(w) > 3):
+            matches.append(d)
+    return matches
+

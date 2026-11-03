@@ -163,22 +163,34 @@ export const DepartmentDetailsSidebar = ({
           {department.id === 'engineering' ? (
             <>
               <button
-                onClick={() => onAskSampleQuestion("What are the minimum setback distances for an R-1 residential zone?")}
+                onClick={() => onAskSampleQuestion("What documents do I need to attach for a residential zoning permit?")}
                 className="w-full text-left p-2 rounded-lg bg-blue-50/50 hover:bg-blue-100 text-blue-900 font-medium transition-colors"
               >
-                📐 What are the setback distances for R-1 residential zone?
+                📋 What documents do I need for a residential zoning permit?
               </button>
               <button
-                onClick={() => onAskSampleQuestion("How much is the residential building permit fee and plan review cost?")}
+                onClick={() => onAskSampleQuestion("I need to remove a tree on my property. What is the procedure?")}
                 className="w-full text-left p-2 rounded-lg bg-blue-50/50 hover:bg-blue-100 text-blue-900 font-medium transition-colors"
               >
-                💵 What is the residential permit fee schedule for 2026?
+                🌳 How do I apply for a tree removal clearance?
               </button>
               <button
-                onClick={() => onAskSampleQuestion("What are the required inspection sequence stages before Certificate of Occupancy?")}
+                onClick={() => onAskSampleQuestion("What are the setback distances for residential zoning in Edison?")}
                 className="w-full text-left p-2 rounded-lg bg-blue-50/50 hover:bg-blue-100 text-blue-900 font-medium transition-colors"
               >
-                🔍 What inspections are required before Certificate of Occupancy?
+                📐 What are the setback distances for Edison residential zones?
+              </button>
+              <button
+                onClick={() => onAskSampleQuestion("Where and when can I submit my engineering permit application in Edison?")}
+                className="w-full text-left p-2 rounded-lg bg-blue-50/50 hover:bg-blue-100 text-blue-900 font-medium transition-colors"
+              >
+                🏢 Where and when can I submit my permit application?
+              </button>
+              <button
+                onClick={() => onAskSampleQuestion("I want to adopt a cat. What is the procedure?")}
+                className="w-full text-left p-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium transition-colors"
+              >
+                🐾 I want to adopt a cat (Test Department Referral)
               </button>
             </>
           ) : (

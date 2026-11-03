@@ -1,5 +1,5 @@
 """
-pgvector Store for City of Pixelvyne
+pgvector Store for Township of Edison (CivicIQ)
 PostgreSQL vector database store utilizing the pgvector extension for native vector similarity search.
 """
 

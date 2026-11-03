@@ -1,11 +1,11 @@
 import os
 import logging
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from .config import APP_NAME, APP_VERSION, MUNICIPALITY_NAME
+from .config import APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
     DepartmentConfig, FlowDefinition, RagResult
@@ -14,7 +14,7 @@ from .department_loader import registry
 from .flow_engine import flow_engine
 from .rag_engine import rag_engine
 from .vector_store import vector_store
-from .edison_document_center import EDISON_DOCUMENT_CATALOG
+from .edison_document_center import EDISON_DOCUMENT_CATALOG, get_document_inventory
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("main")
@@ -253,27 +253,60 @@ def chat_endpoint(req: ChatRequest):
         department_id=req.department_id
     )
 
+    # Check if resident also requested or would benefit from an official form packet
+    form_packet = rag_engine.match_official_form_packet(req.message, req.department_id or "engineering")
+
     return ChatResponse(
         session_id=req.session_id,
         message=rag_res.answer,
         mode="rag",
         citations=rag_res.citations,
+        form_packet=form_packet,
         department_id=req.department_id,
         completed=False
     )
 
 @app.post("/api/ingest")
-def trigger_ingestion(dept: str = "all", clear: bool = False):
-    """Admin endpoint to re-index links from knowledge_links.json."""
-    from backend.scripts.ingest import run_ingestion
-    run_ingestion(target_dept=dept, clear_all=clear)
+def trigger_ingestion(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    clear: bool = False
+):
+    """
+    Protected Admin endpoint to trigger official document discovery, PDF extraction,
+    and vector re-indexing for Edison Township.
+    Requires header 'X-Admin-Key: <ADMIN_API_KEY>'.
+    """
+    if not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key header.")
+
+    from backend.scripts.ingest import run_ingestion_and_inventory
+    result = run_ingestion_and_inventory()
     registry.reload()
-    return {"status": "success", "message": f"Ingestion completed for department '{dept}'."}
+    return {
+        "status": "success",
+        "message": "Official Edison Township document ingestion and indexing completed successfully.",
+        "details": result
+    }
 
 @app.get("/api/vector/stats")
 def get_vector_stats():
     """Returns vector store indexing statistics."""
     return vector_store.get_stats()
+
+@app.get("/api/document-inventory")
+def get_document_inventory_endpoint():
+    """
+    Returns the comprehensive Edison Township document inventory
+    including title, department, document type, extraction status,
+    needs_manual_verification, original URLs, and local paths.
+    """
+    inventory = get_document_inventory()
+    return {
+        "portal_name": "Township of Edison Official Document Center",
+        "official_source": "https://www.edisonnj.org/document_center/index.php",
+        "total_documents": len(inventory),
+        "documents": inventory
+    }
 
 @app.get("/api/document-center")
 def get_document_center(category: Optional[str] = None, search: Optional[str] = None):
@@ -281,14 +314,14 @@ def get_document_center(category: Optional[str] = None, search: Optional[str] = 
     Returns the Township of Edison Document Center catalog (edisonnj.org/document_center/index.php).
     Supports keyword filtering and departmental category filtering.
     """
-    docs = EDISON_DOCUMENT_CATALOG
+    docs = get_document_inventory()
     if category and category.lower() != "all":
-        docs = [d for d in docs if d["category"].lower() == category.lower()]
+        docs = [d for d in docs if (d.get("category") or d.get("document_type", "")).lower() == category.lower()]
     if search and search.strip():
         q = search.lower().strip()
-        docs = [d for d in docs if q in d["title"].lower() or q in d["description"].lower() or q in d["category"].lower()]
+        docs = [d for d in docs if q in d.get("title", "").lower() or q in (d.get("description") or d.get("official_summary", "")).lower() or q in (d.get("category") or d.get("document_type", "")).lower()]
 
-    categories = sorted(list(set(d["category"] for d in EDISON_DOCUMENT_CATALOG)))
+    categories = sorted(list(set(d.get("category") or d.get("document_type", "General") for d in get_document_inventory())))
     return {
         "portal_url": "https://www.edisonnj.org/document_center/index.php",
         "portal_name": "Township of Edison Document Center",

@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Query, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from .config import APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY
+from .config import APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY, APP_TAGLINE
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
     DepartmentConfig, FlowDefinition, RagResult
@@ -19,8 +19,11 @@ from .edison_document_center import EDISON_DOCUMENT_CATALOG, get_document_invent
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("main")
 
+# Multi-turn conversation histories by session_id
+CHAT_HISTORIES = {}
+
 app = FastAPI(
-    title=APP_NAME,
+    title=f"{APP_NAME} - {APP_TAGLINE}",
     version=APP_VERSION,
     description=f"Citizen procedural assistant and grounded knowledge portal for {MUNICIPALITY_NAME}."
 )
@@ -148,19 +151,34 @@ def advance_flow_step(req: FlowStepRequest):
 
 @app.post("/api/flow/reset")
 def reset_flow(session_id: str = Query(...)):
-    """Resets procedure state for session."""
+    """Resets procedure and chat history state for session."""
     flow_engine.reset_session(session_id)
-    return {"status": "success", "message": f"Procedure reset for session {session_id}."}
+    CHAT_HISTORIES.pop(session_id, None)
+    return {"status": "success", "message": f"Procedure and conversation history reset for session {session_id}."}
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest):
     """
-    Main conversational router:
-    1. If user clicked a flow option or is currently inside a flow, advances flowchart.
-    2. If user message requests a permit/service, launches the matching deterministic flow.
-    3. If user message is informational, executes Grounded RAG with exact link citations.
+    Main conversational router for CivicIQ:
+    - Maintains multi-turn conversation memory for context across prompts.
+    - Cites verified Edison Engineering documentation.
+    - Delivers official PDF cards when explicitly requested in context.
+    - Strictly returns out-of-context response for non-engineering queries.
     """
     session = flow_engine.get_session(req.session_id)
+    history = CHAT_HISTORIES.setdefault(req.session_id, [])
+
+    # Reset intent
+    if req.message.strip().lower() in ["/reset", "reset", "start over", "cancel", "restart"]:
+        flow_engine.reset_session(req.session_id)
+        CHAT_HISTORIES.pop(req.session_id, None)
+        return ChatResponse(
+            session_id=req.session_id,
+            message="Your session has been reset. How may I assist you with Edison Township Engineering services today?",
+            mode="general",
+            department_id="engineering",
+            completed=False
+        )
 
     # Case 1: Citizen clicked an option in an active flow
     if req.selected_option_id and session and not session.completed:
@@ -169,6 +187,8 @@ def chat_endpoint(req: ChatRequest):
             option_id=req.selected_option_id
         )
         if success and step:
+            history.append({"role": "user", "content": f"Selected option: {req.selected_option_id}"})
+            history.append({"role": "assistant", "content": step.message})
             return ChatResponse(
                 session_id=req.session_id,
                 message=step.message,
@@ -181,26 +201,20 @@ def chat_endpoint(req: ChatRequest):
                 completed=session.completed
             )
 
-    # Check reset intent
-    if req.message.strip().lower() in ["/reset", "reset", "start over", "cancel procedure", "restart"]:
-        flow_engine.reset_session(req.session_id)
-        return ChatResponse(
-            session_id=req.session_id,
-            message="Your session has been reset. How may I assist you today? You can select a municipal procedure or ask any general question.",
-            mode="general",
-            department_id=req.department_id,
-            completed=False
-        )
+    # Check if user explicitly asked to download or access an official form (with context awareness!)
+    form_packet = rag_engine.match_official_form_packet(req.message, "engineering", history=history)
 
-    # Case 2: Intent detection for starting a flow
+    # Case 2: Intent detection for starting a flow (only if user explicitly says "start/apply flow")
     flow_match = rag_engine.detect_flow_intent(req.message, req.department_id)
-    if flow_match and (not session or session.completed):
+    if flow_match and not form_packet and (not session or session.completed):
         dept_id, flow_id = flow_match
-        success, msg, step, form_packet = flow_engine.start_flow(req.session_id, dept_id, flow_id)
+        success, msg, step, _ = flow_engine.start_flow(req.session_id, dept_id, flow_id)
         if success and step:
+            history.append({"role": "user", "content": req.message})
+            history.append({"role": "assistant", "content": step.message})
             return ChatResponse(
                 session_id=req.session_id,
-                message=f"I have initiated the official **{step.title}** procedure.\n\n{step.message}",
+                message=step.message,
                 mode="flow",
                 options=step.options,
                 current_step=step,
@@ -209,60 +223,27 @@ def chat_endpoint(req: ChatRequest):
                 completed=False
             )
 
-    # Case 3: Citizen is in the middle of a flow but typed text instead of clicking
-    if session and not session.completed:
-        current_step = registry.get_flow(session.department_id, session.flow_id).steps.get(session.current_step_id)
-        if current_step and current_step.options:
-            # Check if typed text matches an option label or id
-            user_text = req.message.lower()
-            matched_opt = None
-            for opt in current_step.options:
-                if opt.id.lower() in user_text or opt.label.lower() in user_text or any(w in user_text for w in opt.label.lower().split() if len(w) > 3):
-                    matched_opt = opt
-                    break
-            
-            if matched_opt:
-                success, msg, step, form_packet = flow_engine.advance_step(req.session_id, matched_opt.id)
-                if success and step:
-                    return ChatResponse(
-                        session_id=req.session_id,
-                        message=step.message,
-                        mode="flow",
-                        options=step.options,
-                        form_packet=form_packet,
-                        current_step=step,
-                        active_flow_id=session.flow_id,
-                        department_id=session.department_id,
-                        completed=session.completed
-                    )
-
-            return ChatResponse(
-                session_id=req.session_id,
-                message=f"You are currently in an official municipal procedure: **{current_step.title}**.\n\nPlease select one of the required official options below to proceed.",
-                mode="flow",
-                options=current_step.options,
-                current_step=current_step,
-                active_flow_id=session.flow_id,
-                department_id=session.department_id,
-                completed=False
-            )
-
-    # Case 4: Informational Query -> Grounded RAG Retrieval
+    # Case 3: Grounded Conversational RAG with Multi-turn History Context
     rag_res: RagResult = rag_engine.answer_query(
         query=req.message,
-        department_id=req.department_id
+        department_id="engineering",
+        history=history
     )
 
-    # Check if resident also requested or would benefit from an official form packet
-    form_packet = rag_engine.match_official_form_packet(req.message, req.department_id or "engineering")
+    final_message = rag_res.answer
+
+    # Record history
+    history.append({"role": "user", "content": req.message})
+    history.append({"role": "assistant", "content": final_message})
+    CHAT_HISTORIES[req.session_id] = history[-10:]
 
     return ChatResponse(
         session_id=req.session_id,
-        message=rag_res.answer,
+        message=final_message,
         mode="rag",
         citations=rag_res.citations,
         form_packet=form_packet,
-        department_id=req.department_id,
+        department_id="engineering",
         completed=False
     )
 

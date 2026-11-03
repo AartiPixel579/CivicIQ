@@ -26,7 +26,7 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
             <span className="flex h-7 w-7 items-center justify-center rounded bg-blue-700/60 font-mono text-xs font-bold text-amber-300 ring-1 ring-amber-400/40">
-              ED
+              CIQ
             </span>
             <div className="text-xs uppercase tracking-wider font-semibold text-blue-200">
               Township of Edison • Official Municipal Record

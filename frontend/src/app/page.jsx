@@ -1,32 +1,23 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Building, ShieldCheck, HardHat, FileText, 
-  MapPin, Phone, HelpCircle 
-} from 'lucide-react';
-import { DepartmentDetailsSidebar } from '../components/DepartmentDetailsSidebar';
+import { ShieldCheck, Bot, Sparkles } from 'lucide-react';
 import { ChatInterface } from '../components/ChatInterface';
 import { PdfPreviewModal } from '../components/PdfPreviewModal';
-import { DocumentCenterTab } from '../components/DocumentCenterTab';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function Home() {
-  const [activeDepartment, setActiveDepartment] = useState(null);
-  const [forms, setForms] = useState([]);
-  
   const [sessionId, setSessionId] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('assistant'); // 'assistant' | 'documents'
 
   // PDF Preview Modal State
   const [previewPdfUrl, setPreviewPdfUrl] = useState('');
   const [previewPdfTitle, setPreviewPdfTitle] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // 1. Initialize session and load department
+  // 1. Initialize session and welcome message
   useEffect(() => {
     let sid = localStorage.getItem('civiciq_session_id');
     if (!sid) {
@@ -35,35 +26,19 @@ export default function Home() {
     }
     setSessionId(sid);
 
-    loadEngineeringData();
+    if (messages.length === 0) {
+      const welcomeMsg = {
+        id: 'welcome_' + Date.now(),
+        sender: 'assistant',
+        text: `Hello! I am **CivicIQ**, your civic intelligence buddy.\n\nI can assist you with Edison Township Engineering services, permits, road openings, tree removals, and sewer connections.\n\nHow can I help you today?`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        mode: 'general',
+      };
+      setMessages([welcomeMsg]);
+    }
   }, []);
 
-  // 2. Load Engineering department details (forms, config)
-  const loadEngineeringData = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/departments/engineering`);
-      if (res.ok) {
-        const data = await res.json();
-        setActiveDepartment(data.config);
-        setForms(data.forms || []);
-
-        if (messages.length === 0) {
-          const welcomeMsg = {
-            id: 'welcome_' + Date.now(),
-            sender: 'assistant',
-            text: `Welcome to the **Township of Edison Engineering Department Assistant**.\n\nI can assist you with municipal engineering questions, road opening and excavation permits, tree removal clearances, sewer connection charges, and official forms from the Edison Document Center (edisonnj.org).\n\nHow may I help you today?`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            mode: 'general',
-          };
-          setMessages([welcomeMsg]);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load engineering department:', err);
-    }
-  };
-
-  // 3. Send Message (either free text or step choice)
+  // 2. Send Message (with conversation context)
   const handleSendMessage = async (text, optionId) => {
     if (!sessionId) return;
 
@@ -123,7 +98,7 @@ export default function Home() {
         const errorMsg = {
           id: 'err_' + Date.now(),
           sender: 'assistant',
-          text: `⚠️ **Engineering Desk Notice**: ${errData.detail || 'An error occurred while communicating with the service registry. Please retry.'}`,
+          text: `⚠️ **Notice**: ${errData.detail || 'An error occurred while communicating with the service. Please retry.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setMessages(prev => [...prev, errorMsg]);
@@ -133,7 +108,7 @@ export default function Home() {
       const errorMsg = {
         id: 'err_network_' + Date.now(),
         sender: 'assistant',
-        text: '⚠️ **Network Notice**: Unable to contact backend API. Please ensure the backend is running on port 8000.',
+        text: '⚠️ **Network Notice**: Unable to contact backend API. Please ensure the backend server is running.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -142,7 +117,7 @@ export default function Home() {
     }
   };
 
-  // 4. Reset session
+  // 3. Reset session
   const handleResetSession = async () => {
     if (!sessionId) return;
     try {
@@ -152,11 +127,11 @@ export default function Home() {
       const resetMsg = {
         id: 'reset_' + Date.now(),
         sender: 'assistant',
-        text: 'Session reset. How may I assist you with Edison Township Engineering services?',
+        text: 'Conversation reset. How may I assist you with Edison Township Engineering services today?',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: 'general',
       };
-      setMessages(prev => [...prev, resetMsg]);
+      setMessages([resetMsg]);
     } catch (err) {
       console.error('Reset error:', err);
     }
@@ -170,103 +145,58 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-800">
-      {/* Top Municipal Navigation Bar */}
+      {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-gradient-to-r from-blue-950 via-slate-900 to-blue-950 text-white shadow-md border-b border-blue-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo & Municipal Branding */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          {/* Logo & Tagline */}
           <div className="flex items-center space-x-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-blue-950 font-black shadow-inner ring-2 ring-amber-300/40">
-              <span className="text-base tracking-tighter">ENG</span>
+              <span className="text-base tracking-tighter">CIQ</span>
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold tracking-widest uppercase text-amber-400">
-                  Township of Edison, NJ
-                </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[10px] text-emerald-300 font-mono">Department Portal</span>
+                <h1 className="text-lg font-extrabold text-white tracking-tight leading-none">
+                  CivicIQ
+                </h1>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               </div>
-              <h1 className="text-base font-extrabold text-white tracking-tight leading-none">
-                Engineering Department Assistant
-              </h1>
+              <p className="text-xs font-medium text-amber-300/90 tracking-wide">
+                Your civic intelligence buddy
+              </p>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs">
-              <button
-                onClick={() => setActiveTab('assistant')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                  activeTab === 'assistant'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Assistant
-              </button>
-              <button
-                onClick={() => setActiveTab('documents')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center space-x-1.5 ${
-                  activeTab === 'documents'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <span>Document Center</span>
-                <span className="text-[10px] bg-amber-400/30 text-amber-950 font-mono px-1.5 py-0.2 rounded-full font-bold">
-                  edisonnj.org
-                </span>
-              </button>
-            </div>
+          <div className="text-right hidden sm:block">
+            <span className="text-[11px] font-semibold text-blue-200 block">
+              Township of Edison, NJ
+            </span>
+            <span className="text-[10px] text-slate-400">
+              Department of Engineering
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          {activeTab === 'assistant' ? (
-            <ChatInterface
-              messages={messages}
-              isLoading={isLoading}
-              activeDepartment={activeDepartment}
-              onSendMessage={handleSendMessage}
-              onResetSession={handleResetSession}
-              onPreviewPdf={handleOpenPdfPreview}
-            />
-          ) : (
-            <DocumentCenterTab
-              onStartFlow={(flowId) => {
-                setActiveTab('assistant');
-                handleSendMessage(`I want to start the procedure for ${flowId}`);
-              }}
-              onPreviewPdf={handleOpenPdfPreview}
-            />
-          )}
-
-          {/* Department Information & Quick Action Sidebar */}
-          <DepartmentDetailsSidebar
-            department={activeDepartment}
-            forms={forms}
-            onPreviewPdf={handleOpenPdfPreview}
-            onAskSampleQuestion={(q) => {
-              setActiveTab('assistant');
-              handleSendMessage(q);
-            }}
-          />
-        </div>
+      {/* Centered Main Chat Assistant */}
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col">
+        <ChatInterface
+          messages={messages}
+          isLoading={isLoading}
+          onSendMessage={handleSendMessage}
+          onResetSession={handleResetSession}
+          onPreviewPdf={handleOpenPdfPreview}
+        />
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="bg-white border-t border-slate-200 py-3.5 px-6 text-center text-xs text-slate-500">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5">
           <span className="flex items-center">
             <ShieldCheck className="h-4 w-4 mr-1.5 text-blue-700" />
-            Township of Edison • Department of Engineering • 100 Municipal Blvd, Edison, NJ 08817
+            CivicIQ • Your civic intelligence buddy • Edison Township Engineering
           </span>
-          <span className="font-mono text-slate-400">
-            Official Edison Municipal Document Repository (edisonnj.org)
+          <span className="font-mono text-slate-400 text-[11px]">
+            edisonnj.org/document_center
           </span>
         </div>
       </footer>

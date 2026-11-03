@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'CivicIQ | Township of Edison Resident Services Assistant',
-  description: 'Official municipal procedural assistant for the Township of Edison, New Jersey with deterministic service flowcharts, grounded document RAG, and official government PDF delivery.',
+  title: 'CivicIQ | Your civic intelligence buddy',
+  description: 'CivicIQ - Your civic intelligence buddy for Edison Township Engineering services.',
 };
 
 export default function RootLayout({ children }) {

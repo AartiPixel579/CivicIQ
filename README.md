@@ -1,6 +1,6 @@
-# CivicIQ - Edison Township Resident Services Assistant
+# CivicIQ - Your Civic Intelligence Buddy
 
-CivicIQ is an AI-powered municipal resident services assistant built for the **Township of Edison, New Jersey**. It guides citizens through official municipal procedures, permits, and zoning regulations using verified data from the official Edison Township Document Center ([edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php)).
+CivicIQ is an AI-powered municipal resident services assistant built for the **Township of Edison, New Jersey**. It guides citizens through official municipal procedures, permits, and engineering regulations using verified data from the official Edison Township Document Center ([edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php)).
 
 CivicIQ is engineered under strict municipal standards:
 1. **Official Link & Document Grounding (RAG)**: Answers inquiries strictly using verified municipal text retrieved from official Edison documents and codes. Zero hallucinations.
@@ -41,10 +41,14 @@ VECTOR_STORE_PROVIDER=pgvector
 EMBEDDING_DIM=128
 ADMIN_API_KEY=civiciq-edison-admin-2026
 
-# Optional LLM Configuration (supports OpenAI or Google Gemini; transparent retrieval fallback active by default)
-LLM_PROVIDER=auto
-OPENAI_API_KEY=
-GEMINI_API_KEY=
+# LLM Configuration (Google Gemini preferred; Groq / OpenAI as alternative)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-1.5-flash
+
+# Optional Groq alternative
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 ### 3. Native pgvector Operations

@@ -58,8 +58,9 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(res.mode, "rag")
         # Ensure refusal is returned and no fabricated citation is created
         self.assertEqual(len(res.citations), 0)
-        self.assertIn("official municipal protocols", res.message.lower())
-        print("[API TEST] Anti-hallucination guardrail passed. Refusal message returned.")
+        self.assertIn("out of our context", res.message.lower())
+        self.assertIn("https://www.edisonnj.org/document_center/index.php", res.message)
+        print("[API TEST] Anti-hallucination guardrail passed. Redirection message returned.")
 
     def test_05_deterministic_flow_completion_and_pdf_issuance(self):
         sid = "test_sess_flow_e2e_edison"

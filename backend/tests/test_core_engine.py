@@ -31,8 +31,9 @@ class TestEdisonCoreEngine(unittest.TestCase):
         res = rag_engine.answer_query("What is the quantum mechanics formula for fusion reactors in space?", department_id="engineering")
         self.assertFalse(res.grounded)
         self.assertEqual(len(res.citations), 0)
-        self.assertIn("Under official municipal protocols", res.answer)
-        print("[TEST RAG] Grounded refusal successfully enforced for unverified topic.")
+        self.assertIn("out of our context", res.answer.lower())
+        self.assertIn("https://www.edisonnj.org/document_center/index.php", res.answer)
+        print("[TEST RAG] Grounded out-of-context redirection successfully enforced.")
 
     def test_deterministic_flowchart_execution(self):
         session_id = "test_citizen_session_edison_001"

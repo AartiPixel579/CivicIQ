@@ -1,40 +1,39 @@
 {
   "id": "engineering",
-  "name": "Edison Township Engineering & Zoning Department",
-  "short_name": "Engineering & Zoning",
+  "name": "Edison Township Department of Engineering",
+  "short_name": "Engineering",
   "municipality": "Township of Edison, New Jersey",
   "badge": "EDISON-ENG",
   "icon": "HardHat",
   "status": "active",
-  "description": "Administers municipal zoning approvals, building setback reviews, tree removal clearances, driveway curb cuts, road opening excavations, stormwater drainage, and land development site plans for the Township of Edison.",
+  "description": "Administers municipal engineering permits, road openings, street excavations, utility trenching, stormwater management, tree removal clearances, sewer connections, and infrastructure site plans for the Township of Edison.",
   "location": {
     "building": "Edison Township Municipal Complex",
-    "floor": "2nd Floor, Division of Zoning & Engineering",
-    "counter": "Zoning & Public Works Intake Desk",
+    "floor": "Municipal Complex, 100 Municipal Blvd",
+    "counter": "Engineering Department Intake Counter",
     "address": "100 Municipal Blvd, Edison, NJ 08817"
   },
   "operating_hours": {
     "weekdays": "Monday – Friday: 8:00 AM – 4:30 PM",
-    "intake_cutoff": "4:00 PM for daily plan and permit drop-off",
-    "weekends": "Closed (Municipal holidays observed)"
+    "intake_cutoff": "4:00 PM for plan and permit intake",
+    "weekends": "Closed"
   },
   "contact": {
-    "email": "zoning@edisonnj.gov",
-    "phone": "(732) 248-7230",
-    "engineering_phone": "(732) 248-7288",
+    "email": "engineering@edisonnj.gov",
+    "phone": "(732) 248-7288",
     "dpw_phone": "(732) 248-7295",
-    "hotline": "(732) 248-7200 (Edison Municipal Operator)"
+    "hotline": "(732) 248-7200"
   },
   "submission_channels": [
     {
       "type": "physical",
-      "name": "Division of Zoning Intake Counter",
-      "details": "Edison Municipal Complex, 100 Municipal Blvd, 2nd Floor. Bring 3 signed & sealed property surveys and payment check payable to 'Township of Edison'."
+      "name": "Engineering Intake Counter",
+      "details": "Edison Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817."
     },
     {
-      "type": "mail",
-      "name": "Postal Mail Submission",
-      "details": "Mail completed application and sealed surveys to: Edison Township Zoning Department, 100 Municipal Blvd, Edison, NJ 08817."
+      "type": "email",
+      "name": "Direct Engineering Email",
+      "details": "engineering@edisonnj.gov"
     },
     {
       "type": "digital",
@@ -42,5 +41,5 @@
       "details": "https://www.edisonnj.org/document_center/index.php"
     }
   ],
-  "standard_processing_time": "10 to 14 business days from receipt of completed application and survey"
+  "standard_processing_time": "5 to 10 business days for engineering permit review"
 }

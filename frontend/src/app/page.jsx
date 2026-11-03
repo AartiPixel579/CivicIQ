@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Building, ShieldCheck, HardHat, Stethoscope, FileText, 
-  Sparkles, Layers, Info, MapPin, Phone, HelpCircle 
+  Building, ShieldCheck, HardHat, FileText, 
+  MapPin, Phone, HelpCircle 
 } from 'lucide-react';
-import { DepartmentSelector } from '../components/DepartmentSelector';
 import { DepartmentDetailsSidebar } from '../components/DepartmentDetailsSidebar';
 import { ChatInterface } from '../components/ChatInterface';
 import { PdfPreviewModal } from '../components/PdfPreviewModal';
@@ -14,10 +13,7 @@ import { DocumentCenterTab } from '../components/DocumentCenterTab';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function Home() {
-  const [departments, setDepartments] = useState([]);
-  const [selectedDeptId, setSelectedDeptId] = useState('engineering');
   const [activeDepartment, setActiveDepartment] = useState(null);
-  const [flows, setFlows] = useState([]);
   const [forms, setForms] = useState([]);
   
   const [sessionId, setSessionId] = useState('');
@@ -30,7 +26,7 @@ export default function Home() {
   const [previewPdfTitle, setPreviewPdfTitle] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // 1. Initialize session and load departments
+  // 1. Initialize session and load department
   useEffect(() => {
     let sid = localStorage.getItem('civiciq_session_id');
     if (!sid) {
@@ -39,42 +35,23 @@ export default function Home() {
     }
     setSessionId(sid);
 
-    fetchDepartments();
+    loadEngineeringData();
   }, []);
 
-  // 2. Fetch all departments
-  const fetchDepartments = async () => {
+  // 2. Load Engineering department details (forms, config)
+  const loadEngineeringData = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/departments`);
-      if (res.ok) {
-        const data = await res.json();
-        setDepartments(data);
-        if (data.length > 0) {
-          loadDepartmentData(data[0].id);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load departments:', err);
-    }
-  };
-
-  // 3. Load specific department details (flows, forms, config)
-  const loadDepartmentData = async (deptId) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/departments/${deptId}`);
+      const res = await fetch(`${API_BASE}/api/departments/engineering`);
       if (res.ok) {
         const data = await res.json();
         setActiveDepartment(data.config);
-        setFlows(data.flows || []);
         setForms(data.forms || []);
-        setSelectedDeptId(deptId);
 
-        // Add welcome message if chat is empty
         if (messages.length === 0) {
           const welcomeMsg = {
             id: 'welcome_' + Date.now(),
             sender: 'assistant',
-            text: `Welcome to **CivicIQ**, the official AI resident services assistant for the **Township of Edison, New Jersey**.\n\n• **Grounded Link RAG**: Inquiries are strictly retrieved from official Edison Township documentation and municipal codes.\n• **Deterministic Flowcharts**: Step-by-step procedural guidance for permits and municipal approvals.\n• **Official PDF Delivery**: Standardized, authentic government documents from edisonnj.org (no AI-fabricated forms).\n\nCurrently assisting for the **${data.config.name}** (${data.config.location.counter}).\nHow may I assist your municipal service request today?`,
+            text: `Welcome to the **Township of Edison Engineering Department Assistant**.\n\nI can assist you with municipal engineering questions, road opening and excavation permits, tree removal clearances, sewer connection charges, and official forms from the Edison Document Center (edisonnj.org).\n\nHow may I help you today?`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             mode: 'general',
           };
@@ -82,29 +59,14 @@ export default function Home() {
         }
       }
     } catch (err) {
-      console.error(`Failed to load department ${deptId}:`, err);
+      console.error('Failed to load engineering department:', err);
     }
   };
 
-  const handleSelectDepartment = (deptId) => {
-    setSelectedDeptId(deptId);
-    loadDepartmentData(deptId);
-    
-    // Notify in chat
-    const switchMsg = {
-      id: 'switch_' + Date.now(),
-      sender: 'system',
-      text: `Switched service desk to ${deptId.toUpperCase()} Department.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => [...prev, switchMsg]);
-  };
-
-  // 4. Send Message (either free text or step choice)
+  // 3. Send Message (either free text or step choice)
   const handleSendMessage = async (text, optionId) => {
     if (!sessionId) return;
 
-    // Append user message if user typed something
     if (text) {
       const userMsg = {
         id: 'user_' + Date.now(),
@@ -114,7 +76,6 @@ export default function Home() {
       };
       setMessages(prev => [...prev, userMsg]);
     } else if (optionId) {
-      // Find label for option to display as user action
       const lastMsg = messages[messages.length - 1];
       const opt = lastMsg?.options?.find(o => o.id === optionId);
       const userMsg = {
@@ -135,7 +96,7 @@ export default function Home() {
         body: JSON.stringify({
           session_id: sessionId,
           message: text || '',
-          department_id: selectedDeptId,
+          department_id: 'engineering',
           selected_option_id: optionId || null,
         }),
       });
@@ -162,7 +123,7 @@ export default function Home() {
         const errorMsg = {
           id: 'err_' + Date.now(),
           sender: 'assistant',
-          text: `⚠️ **Municipal Desk Notice**: ${errData.detail || 'An error occurred while communicating with the service registry. Please retry.'}`,
+          text: `⚠️ **Engineering Desk Notice**: ${errData.detail || 'An error occurred while communicating with the service registry. Please retry.'}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setMessages(prev => [...prev, errorMsg]);
@@ -172,7 +133,7 @@ export default function Home() {
       const errorMsg = {
         id: 'err_network_' + Date.now(),
         sender: 'assistant',
-        text: '⚠️ **Network Notice**: Unable to contact municipal backend API. Please ensure the backend service is running on port 8000.',
+        text: '⚠️ **Network Notice**: Unable to contact backend API. Please ensure the backend is running on port 8000.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -181,46 +142,7 @@ export default function Home() {
     }
   };
 
-  // 5. Start a specific flow from sidebar
-  const handleStartFlow = async (flowId) => {
-    if (!sessionId) return;
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/api/flow/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          department_id: selectedDeptId,
-          flow_id: flowId,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const flowMsg = {
-          id: 'flow_start_' + Date.now(),
-          sender: 'assistant',
-          text: `Initiating procedure: **${data.current_step?.title || flowId}**\n\n${data.message}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          mode: 'flow',
-          options: data.options,
-          current_step: data.current_step,
-          active_flow_id: flowId,
-          department_id: selectedDeptId,
-          completed: false,
-        };
-        setMessages(prev => [...prev, flowMsg]);
-      }
-    } catch (err) {
-      console.error('Start flow error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 6. Reset session
+  // 4. Reset session
   const handleResetSession = async () => {
     if (!sessionId) return;
     try {
@@ -230,7 +152,7 @@ export default function Home() {
       const resetMsg = {
         id: 'reset_' + Date.now(),
         sender: 'assistant',
-        text: 'Session state reset. You are at the main municipal inquiries desk. You may start a new procedure or ask any grounded question.',
+        text: 'Session reset. How may I assist you with Edison Township Engineering services?',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: 'general',
       };
@@ -251,27 +173,27 @@ export default function Home() {
       {/* Top Municipal Navigation Bar */}
       <header className="sticky top-0 z-40 bg-gradient-to-r from-blue-950 via-slate-900 to-blue-950 text-white shadow-md border-b border-blue-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo & Municipal Seal */}
+          {/* Logo & Municipal Branding */}
           <div className="flex items-center space-x-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-blue-950 font-black shadow-inner ring-2 ring-amber-300/40">
-              <span className="text-base tracking-tighter">ED</span>
+              <span className="text-base tracking-tighter">ENG</span>
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold tracking-widest uppercase text-amber-400">
                   Township of Edison, NJ
                 </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] text-emerald-300 font-mono">CivicIQ MVP Live</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span className="text-[10px] text-emerald-300 font-mono">Department Portal</span>
               </div>
               <h1 className="text-base font-extrabold text-white tracking-tight leading-none">
-                CivicIQ Resident Services Assistant
+                Engineering Department Assistant
               </h1>
             </div>
           </div>
 
-          {/* Department Switcher & Navigation Tabs */}
-          <div className="hidden sm:flex items-center space-x-3">
+          {/* Navigation Tabs */}
+          <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-700 text-xs">
               <button
                 onClick={() => setActiveTab('assistant')}
@@ -281,7 +203,7 @@ export default function Home() {
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Resident Assistant
+                Assistant
               </button>
               <button
                 onClick={() => setActiveTab('documents')}
@@ -297,38 +219,6 @@ export default function Home() {
                 </span>
               </button>
             </div>
-
-            <span className="text-xs text-blue-300 font-medium">Department:</span>
-            <DepartmentSelector
-              departments={departments}
-              selectedDeptId={selectedDeptId}
-              onSelectDepartment={handleSelectDepartment}
-            />
-          </div>
-        </div>
-
-        {/* Mobile department & tab bar */}
-        <div className="sm:hidden px-4 py-2 bg-blue-950 border-t border-blue-900 flex flex-col space-y-2">
-          <div className="flex justify-center space-x-2 text-xs">
-            <button
-              onClick={() => setActiveTab('assistant')}
-              className={`px-3 py-1 rounded-lg font-semibold ${activeTab === 'assistant' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
-            >
-              Assistant
-            </button>
-            <button
-              onClick={() => setActiveTab('documents')}
-              className={`px-3 py-1 rounded-lg font-semibold ${activeTab === 'documents' ? 'bg-amber-500 text-slate-950' : 'text-slate-300'}`}
-            >
-              Document Center (edisonnj.org)
-            </button>
-          </div>
-          <div className="flex justify-center">
-            <DepartmentSelector
-              departments={departments}
-              selectedDeptId={selectedDeptId}
-              onSelectDepartment={handleSelectDepartment}
-            />
           </div>
         </div>
       </header>
@@ -349,7 +239,7 @@ export default function Home() {
             <DocumentCenterTab
               onStartFlow={(flowId) => {
                 setActiveTab('assistant');
-                handleStartFlow(flowId);
+                handleSendMessage(`I want to start the procedure for ${flowId}`);
               }}
               onPreviewPdf={handleOpenPdfPreview}
             />
@@ -358,12 +248,7 @@ export default function Home() {
           {/* Department Information & Quick Action Sidebar */}
           <DepartmentDetailsSidebar
             department={activeDepartment}
-            flows={flows}
             forms={forms}
-            onStartFlow={(flowId) => {
-              setActiveTab('assistant');
-              handleStartFlow(flowId);
-            }}
             onPreviewPdf={handleOpenPdfPreview}
             onAskSampleQuestion={(q) => {
               setActiveTab('assistant');
@@ -378,10 +263,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="flex items-center">
             <ShieldCheck className="h-4 w-4 mr-1.5 text-blue-700" />
-            Official Municipal Records Portal • Township of Edison, New Jersey • Grounded Link RAG & Deterministic Flow Engine
+            Township of Edison • Department of Engineering • 100 Municipal Blvd, Edison, NJ 08817
           </span>
           <span className="font-mono text-slate-400">
-            Edison Township Code Chapter 37 & 39 Compliant
+            Official Edison Municipal Document Repository (edisonnj.org)
           </span>
         </div>
       </footer>

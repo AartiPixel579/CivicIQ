@@ -52,14 +52,14 @@ export const ChatInterface = ({
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-sm font-bold text-white tracking-wide">
-                CivicIQ Resident Assistant
+                Edison Engineering Assistant
               </h2>
               <span className="text-[10px] font-medium bg-blue-700/50 text-blue-200 px-2 py-0.5 rounded-full ring-1 ring-blue-500/40">
-                Official Municipal Service Desk
+                Official Municipal Service Portal
               </span>
             </div>
             <p className="text-[11px] text-blue-200/80 flex items-center">
-              Active Routing: <span className="font-semibold text-white ml-1">{activeDepartment?.name || 'All Municipal Departments'}</span>
+              <span>Township of Edison • Department of Engineering</span>
             </p>
           </div>
         </div>
@@ -68,23 +68,12 @@ export const ChatInterface = ({
           <button
             onClick={onResetSession}
             className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-blue-800/80 hover:bg-blue-700 text-blue-100 text-xs font-medium transition-all"
-            title="Reset active workflow and start fresh"
+            title="Reset conversation"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Reset Session</span>
+            <span className="hidden sm:inline">Reset</span>
           </button>
         </div>
-      </div>
-
-      {/* Rules Notice Strip */}
-      <div className="px-5 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between text-[11px] text-blue-900">
-        <div className="flex items-center space-x-1.5 font-medium">
-          <ShieldCheck className="h-3.5 w-3.5 text-blue-700" />
-          <span>Strict Municipal Operating Rules: Grounded Link RAG & Official PDF Delivery Only</span>
-        </div>
-        <span className="text-blue-600 hidden md:inline">
-          Counter intake verified under Municipal Code
-        </span>
       </div>
 
       {/* Chat Messages Log */}

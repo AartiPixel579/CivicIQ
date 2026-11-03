@@ -10,18 +10,18 @@ VECTOR_DB_PATH = DATA_DIR / "vector_store.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Application & Municipality Metadata
-APP_NAME = "CivicIQ - Edison Township Resident Services Assistant"
+APP_NAME = "CivicIQ - Edison Township Engineering Assistant"
 APP_VERSION = "2.0.0"
 MUNICIPALITY_NAME = "Township of Edison, New Jersey"
 OFFICIAL_PORTAL_URL = "https://www.edisonnj.org/document_center/index.php"
 OFFICIAL_DOCUMENT_CENTER_URL = "https://www.edisonnj.org/document_center/index.php"
 MUNICIPAL_ADDRESS = "100 Municipal Blvd, Edison, NJ 08817"
-ENGINEERING_PHONE = "(732) 248-7230"
-ENGINEERING_EMAIL = "zoning@edisonnj.gov"
+ENGINEERING_PHONE = "(732) 248-7288"
+ENGINEERING_EMAIL = "engineering@edisonnj.gov"
 
-# Supported vs Planned Departments (MVP Focus: Engineering)
+# Active Department (Single focus: Engineering)
 ACTIVE_DEPARTMENTS = ["engineering"]
-PLANNED_DEPARTMENTS = ["healthcare", "animal_shelter", "clerk", "public_works", "code_enforcement"]
+PLANNED_DEPARTMENTS = []
 
 # Database & pgvector settings
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgrespassword@localhost:5432/civiciq")

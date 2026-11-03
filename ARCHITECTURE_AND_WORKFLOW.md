@@ -209,11 +209,8 @@ graph TD
 
 ---
 
-## 5. Department MVP & Expansion Model
+## 5. Scope: Edison Township Department of Engineering
 
 | Department | Status | Municipal Office | Contacts | Key Forms / Services |
 |---|---|---|---|---|
-| **Engineering & Zoning** | **Active MVP** | Municipal Complex, 100 Municipal Blvd, 2nd Fl | (732) 248-7230 / `zoning@edisonnj.gov` | Residential Zoning Permits, Street Opening Permits, Tree Removal, Sewer Connections |
-| **Municipal Animal Shelter** | Planned (Referral Active) | 125 Municipal Blvd (Adjacent to Complex) | (732) 248-7258 / `animalshelter@edisonnj.gov` | Pet Adoptions, Pet Licenses, Lost & Found Animals |
-| **Health & Human Services** | Planned (Referral Active) | Municipal Complex, 100 Municipal Blvd, 2nd Fl | (732) 248-7285 / `health@edisonnj.gov` | Retail Food Plan Review, Sanitation Inspections, Vital Statistics |
-| **Township Clerk** | Planned (Referral Active) | Municipal Complex, 100 Municipal Blvd | (732) 248-7350 / `clerk@edisonnj.gov` | OPRA Requests, Landlord Registration, Raffle Licenses |
+| **Department of Engineering** | **Active Focus** | Municipal Complex, 100 Municipal Blvd | (732) 248-7288 / `engineering@edisonnj.gov` | Road Openings, Street Excavations, Utility Trenching, Tree Clearances, Sewer Connections, Municipal Site Plans |

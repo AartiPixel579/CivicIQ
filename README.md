@@ -10,17 +10,17 @@ CivicIQ is engineered under strict municipal standards:
 
 ---
 
-## 🏛️ MVP Scope: Engineering & Zoning Department
+## 🏛️ Scope: Edison Township Department of Engineering
 
 - **Municipality**: Township of Edison, Middlesex County, New Jersey
-- **Active MVP Department**: **Engineering & Zoning Department** (Division of Zoning, DPW, and Sewer Utility)
+- **Active Department**: **Department of Engineering** (Engineering, DPW Road Openings, and Sewer Utility)
 - **Official Source**: `https://www.edisonnj.org/document_center/index.php`
-- **Submission Desk**: Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817 | (732) 248-7230 | `zoning@edisonnj.gov`
-- **Supported Deterministic Workflows**:
-  1. `residential_zoning_permit_flow`: Residential construction, new single-family dwellings, structural additions, decks, swimming pools, sheds, and fences.
-  2. `street_opening_flow`: Right-of-way street excavation, pavement saw-cutting, utility connections, NJ 811 ticket verification, and $5,000 restoration guarantee bond.
-  3. `tree_removal_flow`: Chapter 37 tree removal clearance, DBH threshold verification, and replacement planting plans.
-  4. `sewer_connection_flow`: Municipal sanitary sewer tap-in and fixture unit connection allocation.
+- **Submission Desk**: Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817 | (732) 248-7288 | `engineering@edisonnj.gov`
+- **Supported Engineering Services**:
+  1. Road opening & right-of-way street excavation permits (`RoadOpenApp.pdf`)
+  2. Tree removal clearances & forestry preservation guidelines
+  3. Municipal sanitary sewer connection & tap applications (`Sewer_Connection_Charge_Applications.pdf`)
+  4. Residential building setbacks, plot plan requirements, and permits (`Zoning_Permit_Application_Edison.pdf`)
 
 ---
 

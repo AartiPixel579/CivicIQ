@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { 
   FileText, Download, Eye, CheckCircle2, Circle, 
-  MapPin, Clock, Phone, Mail, ShieldAlert, Award, ExternalLink 
+  MapPin, ShieldAlert, Award, ExternalLink 
 } from 'lucide-react';
 
 export const OfficialPdfCard = ({ formPacket, onPreview }) => {
@@ -153,51 +153,35 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
           </div>
         </div>
 
-        {/* Target Submission Desk Details (Prompt Requirement) */}
+        {/* Target Submission & Official Portal Link */}
         {formPacket.submission_routing && (
           <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-4">
             <div className="flex items-center space-x-2 text-xs font-bold text-blue-950 mb-2">
               <MapPin className="h-4 w-4 text-blue-700" />
-              <span>Target Submission Desk & Intake Routing</span>
+              <span>Target Submission & Official Municipal Portal</span>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4 text-xs text-slate-700">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-slate-700">
               <div>
-                <span className="text-slate-500 block text-[11px]">Department & Desk</span>
+                <span className="text-slate-500 block text-[11px]">Official Department & Desk</span>
                 <span className="font-bold text-slate-900">{formPacket.submission_routing.department}</span>
                 <span className="block font-medium text-blue-800">{formPacket.submission_routing.desk}</span>
               </div>
-              <div>
-                <span className="text-slate-500 block text-[11px]">Building Address</span>
-                <span className="font-medium text-slate-800">{formPacket.submission_routing.building_address}</span>
-              </div>
-              <div className="flex items-center space-x-1.5 pt-1">
-                <Clock className="h-3.5 w-3.5 text-blue-700 flex-shrink-0" />
-                <span>{formPacket.submission_routing.hours}</span>
-              </div>
-              <div className="flex items-center space-x-1.5 pt-1">
-                <Phone className="h-3.5 w-3.5 text-blue-700 flex-shrink-0" />
-                <span>{formPacket.submission_routing.contact_phone}</span>
-                <span className="text-slate-300">|</span>
-                <Mail className="h-3.5 w-3.5 text-blue-700 flex-shrink-0" />
-                <span className="truncate">{formPacket.submission_routing.contact_email}</span>
-              </div>
-            </div>
 
-            {formPacket.submission_routing.digital_upload_url && (
-              <div className="mt-3 pt-3 border-t border-blue-200/60 flex items-center justify-between text-xs">
-                <span className="text-slate-600">Digital Submission Portal:</span>
-                <a
-                  href={formPacket.submission_routing.digital_upload_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center font-semibold text-blue-700 hover:text-blue-900 hover:underline"
-                >
-                  Access Municipal e-Portal
-                  <ExternalLink className="ml-1 h-3 w-3" />
-                </a>
-              </div>
-            )}
+              {formPacket.submission_routing.digital_upload_url && (
+                <div className="flex items-center">
+                  <a
+                    href={formPacket.submission_routing.digital_upload_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-xs font-semibold text-white shadow-sm transition-all"
+                  >
+                    Official Document Center Portal
+                    <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

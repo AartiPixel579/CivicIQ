@@ -33,6 +33,19 @@ EDISON_DOCUMENT_CATALOG = [
         "fee_summary": "$50 (fences/sheds) - $150 (pools) - $200 (new dwelling)"
     },
     {
+        "id": "edison_permit_flow_charts",
+        "title": "Township of Edison Official Permit Flow Charts",
+        "category": "Engineering & Public Works",
+        "department_id": "engineering",
+        "description": "Official municipal permit flowcharts for Tree Removal, Road Opening (DPW), Soil Import/Export, and Site Improvements. Detailed decision logic for emergency vs non-emergency tree removal.",
+        "source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+        "local_file": "Permit_Flow_Charts.pdf",
+        "flow_id": "tree_removal_flow",
+        "submission_desk": "Department of Engineering",
+        "contact_email": "https://www.edisonnj.org/document_center/index.php",
+        "fee_summary": "Standard municipal schedules"
+    },
+    {
         "id": "edison_zoning_fees",
         "title": "Zoning Permit Fee Schedule (Ordinance O.2158-2022)",
         "category": "Engineering & Zoning",

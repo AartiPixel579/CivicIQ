@@ -60,11 +60,11 @@ class FeeInfo(BaseModel):
 class SubmissionRouting(BaseModel):
     department: str
     desk: str
-    building_address: str
-    hours: str
-    contact_phone: str
-    contact_email: str
-    digital_upload_url: Optional[str] = None
+    building_address: Optional[str] = None
+    hours: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    digital_upload_url: Optional[str] = "https://www.edisonnj.org/document_center/index.php"
 
 class FormIssuanceDetails(BaseModel):
     form_code: str
@@ -121,6 +121,7 @@ class RagResult(BaseModel):
     citations: List[RagCitation]
     grounded: bool
     query: str
+    form_packet: Optional[FormIssuanceDetails] = None
 
 # --- Chat & Session Models ---
 class ChatMessage(BaseModel):

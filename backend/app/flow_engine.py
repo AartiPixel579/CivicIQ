@@ -100,12 +100,8 @@ class FlowEngine:
             if not sub_routing and dept_config:
                 sub_routing = SubmissionRouting(
                     department=dept_config.name,
-                    desk=dept_config.location.counter,
-                    building_address=dept_config.location.address,
-                    hours=dept_config.operating_hours.weekdays,
-                    contact_phone=dept_config.contact.phone,
-                    contact_email=dept_config.contact.email,
-                    digital_upload_url=next_step.submission_routing.digital_upload_url if next_step.submission_routing else None
+                    desk="Engineering Division",
+                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
                 )
 
             form_packet = FormIssuanceDetails(

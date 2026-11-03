@@ -6,29 +6,44 @@ and provides transparent grounded retrieval fallback when offline.
 """
 
 import os
+import re
 import logging
 from typing import List, Optional, Dict
 from .config import (
     LLM_PROVIDER, GEMINI_API_KEY, GEMINI_MODEL,
     GROQ_API_KEY, GROQ_BASE_URL, GROQ_MODEL,
     OPENAI_API_KEY, OPENAI_MODEL, MUNICIPALITY_NAME,
-    MUNICIPAL_ADDRESS, ENGINEERING_PHONE, ENGINEERING_EMAIL,
     OUT_OF_CONTEXT_MESSAGE
 )
 from .models import RagCitation
 
 logger = logging.getLogger("llm_client")
 
+def sanitize_contact_info(text: str) -> str:
+    """Removes phone numbers, physical street addresses, and staff emails from text."""
+    if not text:
+        return text
+    text = re.sub(r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}', '', text)
+    text = re.sub(r'\b\d+\s+[A-Za-z0-9\s,]+(?:Blvd|Boulevard|St|Street|Ave|Avenue|Rd|Road|Dr|Drive)[A-Za-z0-9\s,]*\d{5}\b', 'the official municipal portal', text, flags=re.IGNORECASE)
+    text = re.sub(r'100 Municipal Blvd[,\sA-Za-z0-9]*', 'the official municipal portal', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b[A-Za-z0-9._%+-]+@edisonnj\.(?:gov|org)\b', 'https://www.edisonnj.org/document_center/index.php', text)
+    return text.strip()
+
 MUNICIPAL_SYSTEM_PROMPT = f"""You are CivicIQ, your civic intelligence buddy for the {MUNICIPALITY_NAME} Department of Engineering.
-You assist residents with municipal engineering inquiries: road opening permits, street excavations, tree removal clearances, sewer connections, and engineering documents from edisonnj.org.
+You assist residents with municipal engineering inquiries: road opening permits, street excavations, tree removal clearances, sewer connections, and official permit flowcharts from edisonnj.org.
 
 RULES:
-1. Ground your answers strictly in the official municipal context provided.
-2. If the user asks about topics outside Edison Engineering (or other departments like animal shelter, health, clerk, marriage, taxes, or general non-engineering questions), respond with:
+1. Ground your answers strictly in the official municipal context and flowcharts provided.
+2. If the user asks about topics outside Edison Engineering (such as animal shelter, health, clerk, elections, marriage, taxes, or general non-engineering questions), respond strictly with:
 "{OUT_OF_CONTEXT_MESSAGE}"
-3. Maintain conversation context from previous messages. If the user refers to "this", "it", or "the permit" discussed earlier, use the conversation history to understand what they are referring to.
-4. Always maintain a friendly, helpful, and concise tone as a civic intelligence buddy.
-5. Do not invent fees or requirements. Cite official source URLs from edisonnj.org.
+3. Maintain conversation context from previous messages. If the user refers to "this", "it", or previous answers, take reference of the prior context to continue the procedure seamlessly.
+4. TREE REMOVAL GUIDANCE (Official Edison Township Permit Flow Charts):
+   - When the user asks for guidance with tree removal, ask if they currently have an approved permit.
+   - If they reply 'No' and it is urgent / emergency / no time to ask for a permit: ask for the reason for urgency.
+   - If the user provides a valid emergency reason (tree is dead, dying, cracked, leaning dangerously, or an imminent danger to life/property): instruct them that under the Edison Tree Removal Flow Chart, they should take photographic proof or obtain a certified arborist/forester letter stating the tree is dead/dying and an eminent danger, remove the tree immediately for safety, and submit for the permit concurrent to (or immediately following) the tree removal.
+   - If non-emergency, check if part of a subdivision or requiring a demolition permit from Code; if yes, permit is required; if no, permit is NOT required.
+5. STRICT PRIVACY & CONTACT RULE: Do NOT provide any physical street addresses, building counters, phone numbers, or staff emails to the user. Direct the user to the official municipal website: https://www.edisonnj.org/document_center/index.php.
+6. Always maintain a friendly, helpful, and concise tone as a civic intelligence buddy.
 """
 
 class LLMClient:
@@ -86,13 +101,13 @@ class LLMClient:
                 current_prompt = (
                     f"Official Municipal Context:\n{context_str}\n\n"
                     f"Citizen Question: {query}\n\n"
-                    f"Answer accurately using the context above. If outside Engineering context, output: {OUT_OF_CONTEXT_MESSAGE}"
+                    f"Answer accurately using the context above. Do NOT include any phone numbers, physical street addresses, or staff emails; direct users only to the official website: https://www.edisonnj.org/document_center/index.php. If outside Engineering context, strictly output: {OUT_OF_CONTEXT_MESSAGE}"
                 )
                 contents.append({"role": "user", "parts": [current_prompt]})
 
                 res = model.generate_content(contents)
                 if res and res.text:
-                    return res.text.strip()
+                    return sanitize_contact_info(res.text.strip())
             except Exception as e:
                 logger.warning(f"Gemini API call failed ({e}); checking fallback.")
 
@@ -116,7 +131,7 @@ class LLMClient:
                     "content": (
                         f"Official Municipal Context:\n{context_str}\n\n"
                         f"Citizen Question: {query}\n\n"
-                        f"Provide a clear, grounded answer. If outside Engineering, output: {OUT_OF_CONTEXT_MESSAGE}"
+                        f"Provide a clear, grounded answer. Do NOT include any phone numbers, physical street addresses, or staff emails. If outside Engineering, output: {OUT_OF_CONTEXT_MESSAGE}"
                     )
                 })
 
@@ -127,23 +142,25 @@ class LLMClient:
                 )
                 answer = response.choices[0].message.content
                 if answer and len(answer.strip()) > 10:
-                    return answer.strip()
+                    return sanitize_contact_info(answer.strip())
             except Exception as e:
                 logger.warning(f"Groq/OpenAI completion failed ({e}); falling back.")
 
         # 3. Transparent grounded retrieval synthesis (Offline / Local Deterministic Fallback)
         primary = citations[0]
+        cleaned_primary = sanitize_contact_info(primary.excerpt)
         paragraphs = [
             f"According to official **{MUNICIPALITY_NAME}** records for the {department_name} ({primary.title}):",
             "",
-            f"> \"{primary.excerpt}\"",
+            f"> \"{cleaned_primary}\"",
             ""
         ]
 
         if len(citations) > 1:
             paragraphs.append("**Relevant Official Provisions:**")
             for c in citations[1:3]:
-                paragraphs.append(f"• **[{c.title}]({c.url})**: {c.excerpt}")
+                cleaned_c = sanitize_contact_info(c.excerpt)
+                paragraphs.append(f"• **[{c.title}]({c.url})**: {cleaned_c}")
             paragraphs.append("")
 
         paragraphs.append(

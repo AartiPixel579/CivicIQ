@@ -100,6 +100,19 @@ EDISON_OFFICIAL_CATALOG = [
         "target_desk": "Division of Zoning / Engineering Intake Counter, 100 Municipal Blvd, Edison, NJ 08817"
     },
     {
+        "id": "edison_permit_flow_charts",
+        "title": "Township of Edison Official Permit Flow Charts",
+        "department": "engineering",
+        "document_type": "Procedure/guideline",
+        "service_or_permit_name": "Municipal Permit Flow Charts (Tree Removal, Road Opening, Soil, Site Improvement)",
+        "original_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+        "local_filename": "Permit_Flow_Charts.pdf",
+        "workflow_id": "tree_removal_flow",
+        "official_summary": "Official Edison Township decision tree flowcharts: (1) Road Opening Permit (DPW): Required for work in Public Right of Way (sidewalk, curb, apron). (2) Tree Removal Permit: If removing trees, check if emergency. If emergency (eminent danger, dead/dying), take photographic proof or certified arborist/forester letter stating dead/dying and eminent danger, remove tree immediately for safety, and submit for permit concurrent to tree removal. If non-emergency, check if part of subdivision or requiring demolition permit from Code; if yes, permit is required. (3) Soil Import/Export Permit: Required for 10+ cubic yards. (4) Site Improvement Permit: Required if >500 s.f. impervious or >1,250 s.f. disturbance, or drainage/grading changes.",
+        "fee_info": "Standard municipal schedules",
+        "target_desk": "Department of Engineering"
+    },
+    {
         "id": "edison_pool_setbacks",
         "title": "Edison Township Swimming Pool Setback & Enclosure Regulations",
         "department": "engineering",

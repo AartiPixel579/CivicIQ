@@ -242,7 +242,7 @@ def chat_endpoint(req: ChatRequest):
         message=final_message,
         mode="rag",
         citations=rag_res.citations,
-        form_packet=form_packet,
+        form_packet=form_packet or rag_res.form_packet,
         department_id="engineering",
         completed=False
     )

@@ -1,0 +1,42 @@
+{
+  "id": "healthcare",
+  "name": "Healthcare, Food Safety & Sanitation Department",
+  "short_name": "Healthcare & Sanitation",
+  "badge": "HLT",
+  "icon": "Stethoscope",
+  "description": "Regulates retail food establishments, mobile culinary trucks, institutional sanitary licensing, health inspections, water sanitation, and vector control.",
+  "location": {
+    "building": "Civic Health Pavilion",
+    "floor": "2nd Floor",
+    "counter": "Counter 7 (Food & Facility Licensing Desk)",
+    "address": "240 Wellness Parkway, Suite 210, Pixelvyne, PV 94022"
+  },
+  "operating_hours": {
+    "weekdays": "Monday – Thursday: 8:00 AM – 4:00 PM; Friday: 8:00 AM – 1:00 PM",
+    "intake_cutoff": "3:30 PM (12:30 PM on Fridays)",
+    "weekends": "Closed (24/7 Foodborne Illness Emergency Line Active)"
+  },
+  "contact": {
+    "email": "health-licensing@pixelvyne.gov",
+    "phone": "(555) 019-7241",
+    "hotline": "(555) 019-7200 (Emergency Health Dispatch)"
+  },
+  "submission_channels": [
+    {
+      "type": "physical",
+      "name": "Health Pavilion Counter 7",
+      "details": "Present completed form, ServSafe certifications, and equipment spec sheets in person."
+    },
+    {
+      "type": "email",
+      "name": "Direct Health Intake Dispatch",
+      "details": "Submit scanned PDF packet to health-licensing@pixelvyne.gov with subject [NEW APPLICATION]."
+    },
+    {
+      "type": "digital",
+      "name": "Pixelvyne Health Portal",
+      "details": "https://health.pixelvyne.gov/apply"
+    }
+  ],
+  "standard_processing_time": "3 to 7 business days prior to scheduling pre-opening site inspection"
+}

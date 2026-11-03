@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension
+  pgvector-db:
+    image: pgvector/pgvector:pg16
+    container_name: civiciq-pgvector
+    restart: always
+    environment:
+      POSTGRES_DB: civiciq
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init_pgvector.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d civiciq"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

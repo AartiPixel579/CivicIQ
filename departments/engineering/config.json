@@ -1,0 +1,42 @@
+{
+  "id": "engineering",
+  "name": "Engineering & Public Works Department",
+  "short_name": "Engineering",
+  "badge": "ENG",
+  "icon": "HardHat",
+  "description": "Administers municipal building permits, structural reviews, street cuts, driveway permits, stormwater drainage, and right-of-way compliance.",
+  "location": {
+    "building": "Public Works Annex",
+    "floor": "Ground Floor",
+    "counter": "Counter 3 & Counter 4",
+    "address": "100 Civic Center Blvd, Suite 102, Pixelvyne, PV 94016"
+  },
+  "operating_hours": {
+    "weekdays": "Monday – Friday: 8:30 AM – 4:30 PM",
+    "intake_cutoff": "4:00 PM for same-day plan drop-off",
+    "weekends": "Closed (Urgent infrastructure call dispatch active)"
+  },
+  "contact": {
+    "email": "engineering-permits@pixelvyne.gov",
+    "phone": "(555) 019-4820",
+    "hotline": "(555) 019-4800 (Public Works 24/7)"
+  },
+  "submission_channels": [
+    {
+      "type": "physical",
+      "name": "Physical Intake Desk",
+      "details": "Counter 3, Public Works Annex. Bring 2 physical printed plan copies and checklist items."
+    },
+    {
+      "type": "drop_box",
+      "name": "After-Hours Secure Dropbox",
+      "details": "Annex East Entrance Drop Slot (Sealed envelope marked ATTN: ENG PERMITS)."
+    },
+    {
+      "type": "digital",
+      "name": "Municipal Citizen e-Portal",
+      "details": "https://portal.pixelvyne.gov/engineering/upload"
+    }
+  ],
+  "standard_processing_time": "5 to 10 business days upon complete document intake"
+}

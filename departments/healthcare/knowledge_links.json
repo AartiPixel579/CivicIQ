@@ -1,0 +1,26 @@
+{
+  "department_id": "healthcare",
+  "links": [
+    {
+      "url": "https://www.edisonnj.org/document_center/Health%20Dept%20Plan%20Review%20Application.pdf",
+      "title": "Edison Township Health Department Retail Food Plan Review Application",
+      "category": "Food Safety & Facility Licensing",
+      "summary": "Mandatory sanitary blueprint review for restaurants, commercial kitchens, cafes, and bakeries prior to construction or alteration.",
+      "content": "EDISON TOWNSHIP HEALTH DEPARTMENT - RETAIL FOOD PLAN REVIEW (CHAPTER 24 NJ SANITARY CODE)\n1. PLAN REVIEW SUBMISSION: Two (2) sets of dimensioned scaled floor plans showing food preparation areas, 3-compartment dishwashing sinks, dedicated handwashing sinks (within 25 feet of work areas), mop sinks, and food refrigeration must be submitted at least 30 days prior to construction.\n2. EQUIPMENT SPECIFICATIONS: All commercial cooking, refrigeration, and hot-holding units must be NSF or equivalent ANSI accredited sanitation rated.\n3. GREASE INTERCEPTOR: Commercial kitchen wastewater lines must route through an appropriately sized automatic grease recovery device or grease trap.\n4. FOOD PROTECTION MANAGER: Proof of at least one active full-time Certified Food Protection Manager (ServSafe or ANSI equivalent) must be submitted.\n5. SUBMISSION DESK: Submit completed package with plan review fee to Edison Township Health Department, 100 Municipal Blvd, Edison, NJ 08817. Telephone: (732) 248-7285."
+    },
+    {
+      "url": "https://www.edisonnj.org/Departments/Health%20Department/2025_Edison%20Farmers%20Market%20Application%20Packet.pdf",
+      "title": "Edison Township Farmers Market Vendor Application Packet",
+      "category": "Mobile & Temporary Food Vendors",
+      "summary": "Sanitation rules, temperature logs, handwashing station requirements, and permits for temporary and open-air food vendors.",
+      "content": "EDISON HEALTH DEPARTMENT - TEMPORARY & FARMERS MARKET VENDOR RULES\n1. TEMPERATURE INTEGRITY: All cold TCS items (dairy, meats, prepared salads) must be maintained at or below 41°F. Mechanical refrigeration or insulated coolers with drained ice packs required.\n2. HANDWASHING STATIONS: Temporary vendor stalls preparing open food must feature a minimum 5-gallon insulated water container with free-flowing spigot, pump soap, disposable towels, and catch bucket.\n3. SUBMISSION ROUTING: Applications must be submitted at least 14 business days prior to market date to Health Department Licensing Desk."
+    },
+    {
+      "url": "https://www.edisonnj.org/Departments/Health%20Department/Birth,%20Death%20&%20Marriage%20Certificates%20&%20Licenses/Reg-37%20Application%20in%20English.pdf",
+      "title": "Edison Health Department - Vital Statistics Certified Copies Application (REG-37)",
+      "category": "Vital Records",
+      "summary": "Official application to obtain certified copies of Birth Certificates, Death Certificates, and Marriage Licenses registered in Edison Township.",
+      "content": "EDISON TOWNSHIP VITAL STATISTICS (FORM REG-37)\n1. ELIGIBILITY: Certified copies with raised municipal seal are issued only to the subject, parent, legal guardian, spouse, child, grandchild, or legal representative with valid government photo ID.\n2. INTAKE ROUTING: Submit application in person or by mail to Office of Vital Statistics, Health Department, 100 Municipal Blvd, Edison, NJ 08817. Fee: $25.00 for first copy, $2.00 each additional copy."
+    }
+  ]
+}

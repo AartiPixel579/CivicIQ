@@ -1,0 +1,332 @@
+{
+  "department_id": "engineering",
+  "flows": [
+    {
+      "id": "residential_building_permit",
+      "title": "Residential Building & Structural Construction Permit",
+      "code": "FLOW-ENG-01",
+      "category": "Construction & Building",
+      "description": "Standardized municipal procedure to verify zoning, property ownership, setback compliance, and issue official Form ENG-204 for residential building or structural alterations.",
+      "initial_step": "check_zoning",
+      "steps": {
+        "check_zoning": {
+          "id": "check_zoning",
+          "type": "prerequisite_check",
+          "title": "Step 1 of 4: Zoning Classification Verification",
+          "message": "Welcome to the Engineering & Public Works procedural desk. Under Municipal Code Section 48-A, we must first verify your parcel's zoning classification. Is your property designated as Residential (R-1 Single Family, R-2 Two-Family, or R-3 Multi-Family)?",
+          "help_text": "Zoning can be verified on your annual property tax bill or via the Pixelvyne GIS Parcel Map.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "zone_residential",
+              "label": "Yes, Confirmed Residential (R-1, R-2, or R-3)",
+              "description": "Single-family dwelling, duplex, or townhouse parcel",
+              "next_step": "check_ownership"
+            },
+            {
+              "id": "zone_commercial_industrial",
+              "label": "No, Commercial, Industrial, or Mixed-Use (C-1 / M-1)",
+              "description": "Storefront, office, warehouse, or high-density mixed zone",
+              "next_step": "disqualify_commercial_zone"
+            },
+            {
+              "id": "zone_uncertain",
+              "label": "Unsure / Need Zoning Look-up Assistance",
+              "description": "Have parcel tax ID or street address ready",
+              "next_step": "assist_zoning_lookup"
+            }
+          ]
+        },
+        "assist_zoning_lookup": {
+          "id": "assist_zoning_lookup",
+          "type": "question",
+          "title": "Zoning Verification Assistance",
+          "message": "To proceed safely, all applicants must establish residential eligibility. You can verify your zoning immediately by calling the Planning & Zoning Desk at (555) 019-4820 or visiting Counter 2 in the Public Works Annex. Once verified as R-1/R-2/R-3, confirm below.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "zoning_confirmed_res",
+              "label": "I have verified my parcel is Residential (R-1/R-2/R-3)",
+              "description": "Continue with the residential permit procedure",
+              "next_step": "check_ownership"
+            },
+            {
+              "id": "cancel_flow",
+              "label": "Exit procedure and return later",
+              "description": "Obtain zoning documentation first",
+              "next_step": "flow_aborted"
+            }
+          ]
+        },
+        "disqualify_commercial_zone": {
+          "id": "disqualify_commercial_zone",
+          "type": "disqualification",
+          "title": "Commercial / Industrial Routing Required",
+          "message": "Commercial and Industrial properties are regulated under Chapter 52 Commercial Building Code and require the Commercial Development Review Process (Form ENG-500) with civil engineering site plan endorsement.",
+          "alternative_action": "Please visit Counter 4 at Public Works Annex or request the Commercial Development packet from commercial-permits@pixelvyne.gov.",
+          "options": [
+            {
+              "id": "restart",
+              "label": "Restart Residential Building Flow",
+              "description": "Select another property or re-evaluate",
+              "next_step": "check_zoning"
+            }
+          ]
+        },
+        "check_ownership": {
+          "id": "check_ownership",
+          "type": "prerequisite_check",
+          "title": "Step 2 of 4: Ownership & Legal Authority",
+          "message": "Municipal regulations require that the permit applicant is either the legal titleholder (deed owner) or a state-licensed general contractor with a notarized Owner Authorization Affidavit. Do you satisfy this legal prerequisite?",
+          "help_text": "Proof will be verified at Counter 3 intake via Recorded Deed or Notarized Letter of Authorization.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "owner_deed_holder",
+              "label": "Yes, I am the Recorded Deed Property Owner",
+              "description": "Holding title in deed registry",
+              "next_step": "check_project_scope"
+            },
+            {
+              "id": "authorized_contractor",
+              "label": "Yes, Licensed Contractor with Notarized Owner Authorization",
+              "description": "Active state GC license + signed owner affidavit",
+              "next_step": "check_project_scope"
+            },
+            {
+              "id": "no_authorization",
+              "label": "No, Neither Deed Holder nor Authorized Contractor",
+              "description": "Tenant, neighbor, or uncertified representative",
+              "next_step": "disqualify_no_authorization"
+            }
+          ]
+        },
+        "disqualify_no_authorization": {
+          "id": "disqualify_no_authorization",
+          "type": "disqualification",
+          "title": "Mandatory Prerequisite Incomplete: Legal Authorization Required",
+          "message": "Under Municipal Code 12-4, applications cannot be accepted or processed without verified legal standing. Please obtain a signed, notarized Owner Authorization Affidavit from the deed holder before applying.",
+          "alternative_action": "Download an Owner Authorization Affidavit from the Municipal Forms repository or contact the Property Deed Registry at (555) 019-4815.",
+          "options": [
+            {
+              "id": "restart_from_ownership",
+              "label": "I have obtained the Affidavit / Try Again",
+              "description": "Re-verify ownership standing",
+              "next_step": "check_ownership"
+            }
+          ]
+        },
+        "check_project_scope": {
+          "id": "check_project_scope",
+          "type": "question",
+          "title": "Step 3 of 4: Scope of Construction Work",
+          "message": "What is the primary scope of the planned residential work? This determines whether full architectural blueprints or standard dimensioned site plans are mandatory.",
+          "options": [
+            {
+              "id": "scope_new_home",
+              "label": "New Single-Family Residence / Full Rebuild",
+              "description": "Ground-up construction requiring full civil engineering review",
+              "next_step": "check_setbacks"
+            },
+            {
+              "id": "scope_structural_addition",
+              "label": "Structural Home Addition / Multi-Story Extension (> 200 sq.ft.)",
+              "description": "Expanding dwelling footprint or roofline",
+              "next_step": "check_setbacks"
+            },
+            {
+              "id": "scope_accessory_structure",
+              "label": "Detached Garage, Workshop, ADU, or Covered Patio",
+              "description": "Secondary detached structures on the same residential lot",
+              "next_step": "check_setbacks"
+            }
+          ]
+        },
+        "check_setbacks": {
+          "id": "check_setbacks",
+          "type": "prerequisite_check",
+          "title": "Step 4 of 4: Setback & Boundary Survey Compliance",
+          "message": "City Code Chapter 48 enforces minimum building setback buffers: Front (25 ft), Rear (15 ft), and Side (5 ft each, 15 ft aggregate). Does your proposed construction plan maintain these setbacks without infringing upon utility easements?",
+          "help_text": "If any portion crosses into the setback buffer, a separate Board of Adjustment Variance (Form BOA-101) is legally required before a building permit can be approved.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "setbacks_compliant",
+              "label": "Yes, Fully Compliant with Municipal Setback Buffers",
+              "description": "Site plan confirms all building edges are within legal boundary limits",
+              "next_step": "issue_form_eng_204"
+            },
+            {
+              "id": "setbacks_variance_needed",
+              "label": "No / Encroaches into Setback Buffer (Variance Needed)",
+              "description": "Proposed structure falls within 15ft rear or 5ft side boundary",
+              "next_step": "route_to_variance"
+            }
+          ]
+        },
+        "route_to_variance": {
+          "id": "route_to_variance",
+          "type": "disqualification",
+          "title": "Zoning Board of Adjustment Variance Mandatory",
+          "message": "Because the proposed construction encroaches into municipal setback buffers, Engineering cannot issue Form ENG-204 until the Board of Adjustment grants a formal Setback Variance Hearing Approval.",
+          "alternative_action": "File for a Setback Variance at Planning Desk, Counter 2. Hearings are convened every 2nd Tuesday of each month.",
+          "options": [
+            {
+              "id": "restart_setback",
+              "label": "Re-adjust building plans to comply with setbacks",
+              "description": "Update plot dimensions to fit within legal lines",
+              "next_step": "check_setbacks"
+            }
+          ]
+        },
+        "issue_form_eng_204": {
+          "id": "issue_form_eng_204",
+          "type": "form_issuance",
+          "title": "Prerequisites Satisfied: Official Form Issuance",
+          "message": "All prerequisite criteria verified successfully! The Engineering & Public Works Department has generated your official, standardized application packet. Please download the official PDF form below, review the mandatory attachments checklist, and follow the departmental counter submission protocol.",
+          "form_code": "Form ENG-204",
+          "form_title": "Municipal Residential Building & Excavation Permit Application (Rev 2026.1)",
+          "form_file": "ENG-204_Residential_Permit_Application.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Complete Sections A (Applicant Data), B (Property Parcel Information), and C (Contractor License).\n2. Specify exact project valuation and square footage in Section D.\n3. Both property owner and licensed contractor must sign Section E in black ink.\n4. Do NOT separate or alter official document codes; photocopies are acceptable if original signature is affixed.",
+          "required_attachments": [
+            "2 Sets of Dimensioned Site Plans (1/4\" = 1' scale, showing property boundaries & setbacks)",
+            "Proof of Ownership (Copy of Recorded Deed or Most Recent Real Property Tax Notice)",
+            "State Contractor License Copy & Certificate of Liability Insurance ($1,000,000 min, listing City as certificate holder)",
+            "Workers' Compensation Exemption Certificate or Policy Binder",
+            "Non-refundable Base Intake Fee Receipt ($250.00)"
+          ],
+          "fee_info": {
+            "amount": "$250.00 Base Intake + $0.18 / sq.ft.",
+            "payment_methods": "Cashier's Check, Credit Card (Visa/Mastercard), or Cash (under $500)"
+          },
+          "submission_routing": {
+            "department": "Engineering & Public Works Department",
+            "desk": "Counter 3, Public Works Intake Annex",
+            "building_address": "100 Civic Center Blvd, Ground Floor, Pixelvyne, PV 94016",
+            "hours": "Monday – Friday: 8:30 AM – 4:30 PM (Intake closes at 4:00 PM)",
+            "contact_phone": "(555) 019-4820",
+            "contact_email": "engineering-permits@pixelvyne.gov",
+            "digital_upload_url": "https://portal.pixelvyne.gov/engineering/upload"
+          },
+          "lead_time": "5 to 10 Business Days for Plan Review Division Sign-off"
+        },
+        "flow_aborted": {
+          "id": "flow_aborted",
+          "type": "disqualification",
+          "title": "Procedure Suspended",
+          "message": "You have paused the application flow. Your progress can be resumed anytime by re-initiating the Residential Building Permit procedure.",
+          "alternative_action": "Contact the Engineering Intake Helpdesk at (555) 019-4820 with questions.",
+          "options": [
+            {
+              "id": "restart_flow",
+              "label": "Restart Residential Building Permit Procedure",
+              "description": "Start over from Step 1",
+              "next_step": "check_zoning"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "road_excavation_permit",
+      "title": "Right-of-Way Road Opening & Trenching Permit",
+      "code": "FLOW-ENG-02",
+      "category": "Excavation & Infrastructure",
+      "description": "Procedural verification for street cuts, utility trenching, sidewalk removal, and driveway curb cut alterations.",
+      "initial_step": "check_utility_dig_ticket",
+      "steps": {
+        "check_utility_dig_ticket": {
+          "id": "check_utility_dig_ticket",
+          "type": "prerequisite_check",
+          "title": "Step 1 of 3: State 811 'Call Before You Dig' Utility Locate Ticket",
+          "message": "Under State Underground Facilities Act and Municipal Code 18-9, no street opening or right-of-way permit may be issued without an active, verified 811 Utility Locate Ticket number. Have you filed and received your 811 locate confirmation ticket?",
+          "help_text": "Call 811 or submit online at call811.com at least 48 hours prior to digging.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "ticket_active",
+              "label": "Yes, Active 811 Dig Ticket Confirmation Received",
+              "description": "Hold valid 9-digit utility locate reference ticket",
+              "next_step": "check_traffic_control"
+            },
+            {
+              "id": "ticket_pending",
+              "label": "No / Ticket Not Yet Requested",
+              "description": "Must request locate before permit issuance",
+              "next_step": "disqualify_no_811"
+            }
+          ]
+        },
+        "disqualify_no_811": {
+          "id": "disqualify_no_811",
+          "type": "disqualification",
+          "title": "Mandatory Prerequisite: 811 Utility Locate Required",
+          "message": "Public safety statutes strictly prohibit municipal permit issuance without active underground utility markings (gas, electric, water, telecom). You cannot proceed until an 811 ticket is registered.",
+          "alternative_action": "Dial 811 or visit call811.com to log your site. Once ticket is issued (typically 48 hrs), return to resume this flow.",
+          "options": [
+            {
+              "id": "retry_after_811",
+              "label": "I have now obtained my 811 Ticket Number",
+              "description": "Resume excavation permit request",
+              "next_step": "check_traffic_control"
+            }
+          ]
+        },
+        "check_traffic_control": {
+          "id": "check_traffic_control",
+          "type": "question",
+          "title": "Step 2 of 3: Traffic & Pedestrian Impairment",
+          "message": "Will your excavation, trenching, or machinery block any public travel lane, bike path, or sidewalk for longer than 30 minutes?",
+          "options": [
+            {
+              "id": "traffic_impeded",
+              "label": "Yes, Traffic Lane or Pedestrian Sidewalk Will Be Obstructed",
+              "description": "Requires MUTCD-compliant Traffic Control Plan & certified flaggers",
+              "next_step": "issue_form_eng_102"
+            },
+            {
+              "id": "traffic_clear",
+              "label": "No, Entirely Confined to Curb Verge / Off-Travel Shoulder",
+              "description": "Standard sidewalk cones and safety barricades suffice",
+              "next_step": "issue_form_eng_102"
+            }
+          ]
+        },
+        "issue_form_eng_102": {
+          "id": "issue_form_eng_102",
+          "type": "form_issuance",
+          "title": "Prerequisites Satisfied: Official Form Issuance",
+          "message": "Excavation prerequisites verified! The Engineering Department has issued official Form ENG-102. Please review the checklist and submission routing below.",
+          "form_code": "Form ENG-102",
+          "form_title": "Municipal Right-of-Way & Street Opening Excavation Permit (Rev 2026.1)",
+          "form_file": "ENG-102_Excavation_Right_of_Way_Permit.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Insert active 811 Dig Ticket reference number in Section 1.\n2. Sketch exact trench dimensions (length, width, depth) and backfill material specifications in Section 3.\n3. Attach Certificate of Bond for pavement restoration guarantee.\n4. Deliver in person to Counter 4.",
+          "required_attachments": [
+            "Active State 811 Utility Locate Ticket Number & Confirmation Slip",
+            "Dimensioned Trench Route Map indicating depth and utility crossings",
+            "Pavement Restoration Surety Bond ($5,000 refundable guarantee deposit)",
+            "Certificate of Contractor Commercial General Liability ($2,000,000 aggregate)",
+            "MUTCD Traffic Control / Detour Plan (if impeding travel lanes)",
+            "Application Filing Fee ($150.00)"
+          ],
+          "fee_info": {
+            "amount": "$150.00 Filing Fee + $5,000 Refundable Restoration Bond",
+            "payment_methods": "Certified Bank Check or Cashier's Check for bond; Credit Card accepted for filing fee"
+          },
+          "submission_routing": {
+            "department": "Engineering & Public Works Department",
+            "desk": "Counter 4, Right-of-Way & Utilities Desk",
+            "building_address": "100 Civic Center Blvd, Ground Floor, Pixelvyne, PV 94016",
+            "hours": "Monday – Friday: 8:30 AM – 4:30 PM",
+            "contact_phone": "(555) 019-4820",
+            "contact_email": "engineering-permits@pixelvyne.gov",
+            "digital_upload_url": "https://portal.pixelvyne.gov/engineering/upload"
+          },
+          "lead_time": "3 to 5 Business Days"
+        }
+      }
+    }
+  ]
+}

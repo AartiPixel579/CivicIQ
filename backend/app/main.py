@@ -1,0 +1,298 @@
+import os
+import logging
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+
+from .config import APP_NAME, APP_VERSION, MUNICIPALITY_NAME
+from .models import (
+    ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
+    DepartmentConfig, FlowDefinition, RagResult
+)
+from .department_loader import registry
+from .flow_engine import flow_engine
+from .rag_engine import rag_engine
+from .vector_store import vector_store
+from .edison_document_center import EDISON_DOCUMENT_CATALOG
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("main")
+
+app = FastAPI(
+    title=APP_NAME,
+    version=APP_VERSION,
+    description=f"Citizen procedural assistant and grounded knowledge portal for {MUNICIPALITY_NAME}."
+)
+
+# Enable CORS for Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/api/health")
+def health_check():
+    stats = vector_store.get_stats()
+    return {
+        "status": "healthy",
+        "app": APP_NAME,
+        "version": APP_VERSION,
+        "municipality": MUNICIPALITY_NAME,
+        "vector_backend": stats.get("backend", "pgvector"),
+        "departments_loaded": len(registry.departments),
+        "vector_store_chunks": stats["total_chunks"]
+    }
+
+@app.get("/api/departments")
+def list_departments():
+    """Returns list of registered municipal departments."""
+    return [dept.model_dump() for dept in registry.get_departments()]
+
+@app.get("/api/departments/{dept_id}")
+def get_department(dept_id: str):
+    """Returns department config, its available flows, and official forms."""
+    dept = registry.get_department(dept_id)
+    if not dept:
+        raise HTTPException(status_code=404, detail=f"Department '{dept_id}' not found.")
+    
+    flows = [f.model_dump() for f in registry.get_flows_for_dept(dept_id)]
+    forms = registry.list_forms_for_dept(dept_id)
+    links = [l.model_dump() for l in registry.knowledge_links.get(dept_id, [])]
+
+    return {
+        "config": dept.model_dump(),
+        "flows": flows,
+        "forms": forms,
+        "links": links
+    }
+
+@app.get("/api/flows/{dept_id}")
+def get_department_flows(dept_id: str):
+    """Returns all deterministic flows available in the given department."""
+    flows = registry.get_flows_for_dept(dept_id)
+    return [f.model_dump() for f in flows]
+
+@app.get("/api/forms/{dept_id}/{filename}")
+def serve_official_form(dept_id: str, filename: str):
+    """
+    Streams official static PDF document from /departments/<dept_id>/forms/<filename>.
+    Does not allow path traversal.
+    """
+    safe_filename = Path(filename).name
+    pdf_path = registry.get_form_path(dept_id, safe_filename)
+    if not pdf_path or not pdf_path.exists():
+        raise HTTPException(status_code=404, detail=f"Official form '{filename}' not found for department '{dept_id}'.")
+
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=safe_filename,
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename}"',
+            "Cache-Control": "public, max-age=3600"
+        }
+    )
+
+@app.post("/api/flow/start", response_model=ChatResponse)
+def start_flow_endpoint(req: FlowStartRequest):
+    """Explicitly launches a deterministic flow for a citizen session."""
+    success, msg, step, form_packet = flow_engine.start_flow(
+        session_id=req.session_id,
+        department_id=req.department_id,
+        flow_id=req.flow_id
+    )
+    if not success or not step:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return ChatResponse(
+        session_id=req.session_id,
+        message=step.message,
+        mode="flow",
+        options=step.options,
+        current_step=step,
+        active_flow_id=req.flow_id,
+        department_id=req.department_id,
+        completed=False
+    )
+
+@app.post("/api/flow/step", response_model=ChatResponse)
+def advance_flow_step(req: FlowStepRequest):
+    """Advances the active procedure step by choosing an option."""
+    session = flow_engine.get_session(req.session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="No active flow session. Start a procedure first.")
+
+    success, msg, step, form_packet = flow_engine.advance_step(
+        session_id=req.session_id,
+        option_id=req.option_id
+    )
+
+    if not success or not step:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return ChatResponse(
+        session_id=req.session_id,
+        message=step.message,
+        mode="flow",
+        options=step.options,
+        form_packet=form_packet,
+        current_step=step,
+        active_flow_id=session.flow_id,
+        department_id=session.department_id,
+        completed=session.completed
+    )
+
+@app.post("/api/flow/reset")
+def reset_flow(session_id: str = Query(...)):
+    """Resets procedure state for session."""
+    flow_engine.reset_session(session_id)
+    return {"status": "success", "message": f"Procedure reset for session {session_id}."}
+
+@app.post("/api/chat", response_model=ChatResponse)
+def chat_endpoint(req: ChatRequest):
+    """
+    Main conversational router:
+    1. If user clicked a flow option or is currently inside a flow, advances flowchart.
+    2. If user message requests a permit/service, launches the matching deterministic flow.
+    3. If user message is informational, executes Grounded RAG with exact link citations.
+    """
+    session = flow_engine.get_session(req.session_id)
+
+    # Case 1: Citizen clicked an option in an active flow
+    if req.selected_option_id and session and not session.completed:
+        success, msg, step, form_packet = flow_engine.advance_step(
+            session_id=req.session_id,
+            option_id=req.selected_option_id
+        )
+        if success and step:
+            return ChatResponse(
+                session_id=req.session_id,
+                message=step.message,
+                mode="flow",
+                options=step.options,
+                form_packet=form_packet,
+                current_step=step,
+                active_flow_id=session.flow_id,
+                department_id=session.department_id,
+                completed=session.completed
+            )
+
+    # Check reset intent
+    if req.message.strip().lower() in ["/reset", "reset", "start over", "cancel procedure", "restart"]:
+        flow_engine.reset_session(req.session_id)
+        return ChatResponse(
+            session_id=req.session_id,
+            message="Your session has been reset. How may I assist you today? You can select a municipal procedure or ask any general question.",
+            mode="general",
+            department_id=req.department_id,
+            completed=False
+        )
+
+    # Case 2: Intent detection for starting a flow
+    flow_match = rag_engine.detect_flow_intent(req.message, req.department_id)
+    if flow_match and (not session or session.completed):
+        dept_id, flow_id = flow_match
+        success, msg, step, form_packet = flow_engine.start_flow(req.session_id, dept_id, flow_id)
+        if success and step:
+            return ChatResponse(
+                session_id=req.session_id,
+                message=f"I have initiated the official **{step.title}** procedure.\n\n{step.message}",
+                mode="flow",
+                options=step.options,
+                current_step=step,
+                active_flow_id=flow_id,
+                department_id=dept_id,
+                completed=False
+            )
+
+    # Case 3: Citizen is in the middle of a flow but typed text instead of clicking
+    if session and not session.completed:
+        current_step = registry.get_flow(session.department_id, session.flow_id).steps.get(session.current_step_id)
+        if current_step and current_step.options:
+            # Check if typed text matches an option label or id
+            user_text = req.message.lower()
+            matched_opt = None
+            for opt in current_step.options:
+                if opt.id.lower() in user_text or opt.label.lower() in user_text or any(w in user_text for w in opt.label.lower().split() if len(w) > 3):
+                    matched_opt = opt
+                    break
+            
+            if matched_opt:
+                success, msg, step, form_packet = flow_engine.advance_step(req.session_id, matched_opt.id)
+                if success and step:
+                    return ChatResponse(
+                        session_id=req.session_id,
+                        message=step.message,
+                        mode="flow",
+                        options=step.options,
+                        form_packet=form_packet,
+                        current_step=step,
+                        active_flow_id=session.flow_id,
+                        department_id=session.department_id,
+                        completed=session.completed
+                    )
+
+            return ChatResponse(
+                session_id=req.session_id,
+                message=f"You are currently in an official municipal procedure: **{current_step.title}**.\n\nPlease select one of the required official options below to proceed.",
+                mode="flow",
+                options=current_step.options,
+                current_step=current_step,
+                active_flow_id=session.flow_id,
+                department_id=session.department_id,
+                completed=False
+            )
+
+    # Case 4: Informational Query -> Grounded RAG Retrieval
+    rag_res: RagResult = rag_engine.answer_query(
+        query=req.message,
+        department_id=req.department_id
+    )
+
+    return ChatResponse(
+        session_id=req.session_id,
+        message=rag_res.answer,
+        mode="rag",
+        citations=rag_res.citations,
+        department_id=req.department_id,
+        completed=False
+    )
+
+@app.post("/api/ingest")
+def trigger_ingestion(dept: str = "all", clear: bool = False):
+    """Admin endpoint to re-index links from knowledge_links.json."""
+    from backend.scripts.ingest import run_ingestion
+    run_ingestion(target_dept=dept, clear_all=clear)
+    registry.reload()
+    return {"status": "success", "message": f"Ingestion completed for department '{dept}'."}
+
+@app.get("/api/vector/stats")
+def get_vector_stats():
+    """Returns vector store indexing statistics."""
+    return vector_store.get_stats()
+
+@app.get("/api/document-center")
+def get_document_center(category: Optional[str] = None, search: Optional[str] = None):
+    """
+    Returns the Township of Edison Document Center catalog (edisonnj.org/document_center/index.php).
+    Supports keyword filtering and departmental category filtering.
+    """
+    docs = EDISON_DOCUMENT_CATALOG
+    if category and category.lower() != "all":
+        docs = [d for d in docs if d["category"].lower() == category.lower()]
+    if search and search.strip():
+        q = search.lower().strip()
+        docs = [d for d in docs if q in d["title"].lower() or q in d["description"].lower() or q in d["category"].lower()]
+
+    categories = sorted(list(set(d["category"] for d in EDISON_DOCUMENT_CATALOG)))
+    return {
+        "portal_url": "https://www.edisonnj.org/document_center/index.php",
+        "portal_name": "Township of Edison Document Center",
+        "total_documents": len(docs),
+        "categories": ["All"] + categories,
+        "documents": docs
+    }

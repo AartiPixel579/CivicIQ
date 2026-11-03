@@ -1,0 +1,47 @@
+{
+  "department_id": "engineering",
+  "links": [
+    {
+      "url": "https://www.edisonnj.org/document_center/index.php",
+      "title": "Township of Edison Document Center - Official Forms & Applications Repository",
+      "category": "Municipal Document Center",
+      "summary": "Centralized municipal repository for Edison Township permits, engineering zoning applications, road opening permits, and land use documents.",
+      "content": "TOWNSHIP OF EDISON - OFFICIAL DOCUMENT CENTER & REPOSITORY (edisonnj.org/document_center/index.php)\n1. JURISDICTION & DEPARTMENTS: Houses official municipal applications and permits across Engineering, Zoning Board, Public Works, Health Department, Code Enforcement, and Township Clerk.\n2. SUBMISSION CHANNELS: Documents can be submitted in-person at the Municipal Complex (100 Municipal Blvd, Edison, NJ 08817) or via designated departmental email dispatch (e.g. clerk@edisonnj.gov, opra@edisonnj.gov).\n3. STANDARDIZED PDF INTAKE: All applicants must utilize official, un-altered municipal PDF forms. Photocopies and digital submissions must contain original inked or verified digital signatures."
+    },
+    {
+      "url": "https://www.edisonnj.org/document_center/ZONING%20PERMIT%20REQUIREMENT%20SHEET.pdf",
+      "title": "Edison Township Zoning Permit Requirements & Submission Protocol",
+      "category": "Zoning & Permits",
+      "summary": "Mandatory survey, plot plan, and setback submission requirements for all residential and commercial zoning permits.",
+      "content": "EDISON TOWNSHIP ZONING PERMIT REQUIREMENT SHEET (CHAPTER 39)\n1. SURVEY REQUIREMENT: A current signed and sealed property survey (scale: 1 inch = 20 feet or 1 inch = 30 feet) prepared by a NJ licensed land surveyor must accompany all applications.\n2. PROPOSED IMPROVEMENTS: The exact location, proposed dimensions, height, and setback distances (front, rear, side) of proposed construction must be clearly delineated on two (2) copies of the survey.\n3. PERMIT TYPES: Required for additions, new dwellings, detached garages, sheds over 100 sq.ft., swimming pools (in-ground and above-ground), driveways, patios, and decks.\n4. DECK & PATIO SETBACKS: Unenclosed open decks must observe a minimum 15-foot rear yard setback in residential R-A, R-B, and R-C zones, and must not exceed maximum impervious lot coverage limits.\n5. INTAKE ROUTING: Submit completed Zoning Application along with survey to Division of Zoning, Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817."
+    },
+    {
+      "url": "https://www.edisonnj.org/document_center/Zoning%20ApplicationNEW.pdf",
+      "title": "Edison Township Official Zoning Permit Application Form",
+      "category": "Zoning Applications",
+      "summary": "Official standardized application for residential building additions, pools, decks, fences, accessory structures, and commercial site changes.",
+      "content": "EDISON TOWNSHIP ZONING APPLICATION (CODE 39-B)\n1. APPLICANT DATA: Requires Block, Lot, Work Site Address, Property Owner Name, and Licensed Contractor Registration Number.\n2. STRUCTURE DESCRIPTION: Applicant must indicate proposed work: Single-Family Dwelling, Addition, Shed, Fence (> 6ft), Inground Pool, Above-ground Pool, Deck, Retaining Wall, or Commercial Use Change.\n3. DIMENSIONS & COVERAGE: Must declare existing ground building footprint, proposed addition footprint, accessory structure square footage, and total lot impervious coverage percentage."
+    },
+    {
+      "url": "https://www.edisonnj.org/Departments/Engineering%20Department/Zoning%20Board/Zoning%20Permit%20Fees%202022.pdf",
+      "title": "Edison Township Zoning Permit Fee Schedule (Ordinance O.2158)",
+      "category": "Fees & Payments",
+      "summary": "Official schedule of zoning review fees for residential additions, accessory structures, fences, and commercial developments.",
+      "content": "EDISON TOWNSHIP ZONING PERMIT FEE SCHEDULE (ORDINANCE O.2158)\n1. RESIDENTIAL FEES: Residential Fence: $50.00. Shed (under 200 sq.ft.): $50.00; Shed (> 200 sq.ft.): $100.00. Swimming Pool (Above-Ground): $75.00; In-Ground Pool: $150.00. Residential Addition / Alteration: $100.00. New Single-Family Dwelling: $200.00. Deck Construction: $75.00.\n2. COMMERCIAL FEES: Change of Tenancy / Commercial Use: $250.00. Commercial Site Plan Zoning Review: $500.00 base.\n3. PAYMENT PROTOCOL: Check payable to 'Township of Edison' or credit card at Engineering Intake Counter."
+    },
+    {
+      "url": "https://www.edisonnj.org/document_center/RoadOpenApp.pdf",
+      "title": "Edison Township Street Opening & Right-of-Way Road Excavation Permit",
+      "category": "Public Works & Infrastructure",
+      "summary": "Application requirements, pavement cutting restrictions, traffic safety plans, and restoration bond deposits for street excavation.",
+      "content": "EDISON TOWNSHIP ROAD OPENING PERMIT (DPW / ENGINEERING)\n1. UTILITY CLEARANCE: Mandatory 811 Call Before You Dig locate ticket number must be affixed prior to application intake.\n2. PAVEMENT RESTORATION BOND: A refundable restoration guarantee deposit or surety bond of $5,000.00 is required for all pavement cuts to ensure 12-month asphalt settlement stability.\n3. TRAFFIC CONTROL: If roadway obstruction exceeds single-lane flagger clearance, an approved Edison Police Traffic Division traffic control detour plan must be attached.\n4. SUBMISSION INTAKE: Submit directly to Public Works & Engineering Desk, 100 Municipal Blvd, Edison, NJ."
+    },
+    {
+      "url": "https://www.edisonnj.org/Departments/Engineering%20Department/ZONING%20MAP.pdf",
+      "title": "Township of Edison Official Municipal Zoning District Map",
+      "category": "Zoning Maps",
+      "summary": "Official cartographic boundary delineations of R-A, R-B, R-C, Commercial C-1/C-2, and Light Industrial M-1 zones across Edison Township.",
+      "content": "EDISON TOWNSHIP ZONING DISTRICT DELINEATIONS\n1. RESIDENTIAL CLASSIFICATIONS: R-A (Single-Family Estate), R-B (Single-Family Medium Density), R-C (Single-Family High Density), R-D (Multi-Family Attached).\n2. SETBACK REQUIREMENTS: R-A: Front 35ft, Rear 25ft, Side 10ft. R-B: Front 25ft, Rear 20ft, Side 8ft. R-C: Front 20ft, Rear 15ft, Side 6ft."
+    }
+  ]
+}

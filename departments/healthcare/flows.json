@@ -1,0 +1,105 @@
+{
+  "department_id": "healthcare",
+  "flows": [
+    {
+      "id": "food_establishment_license",
+      "title": "Commercial Food Establishment Operating License",
+      "code": "FLOW-HLT-01",
+      "category": "Food & Beverage Safety",
+      "description": "Procedural verification for opening a restaurant, café, commercial bakery, or catering facility in Pixelvyne.",
+      "initial_step": "check_cfpm_certification",
+      "steps": {
+        "check_cfpm_certification": {
+          "id": "check_cfpm_certification",
+          "type": "prerequisite_check",
+          "title": "Step 1 of 3: Certified Food Protection Manager (CFPM)",
+          "message": "Municipal Sanitary Code Chapter 33 mandates that every retail food facility designate at least one full-time Certified Food Protection Manager (ServSafe or ANSI-accredited credential issued within the past 5 years). Does your establishment have a certified manager on staff?",
+          "help_text": "Certificate copy must be appended to the official application.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "cfpm_active",
+              "label": "Yes, Active CFPM Certificate on File",
+              "description": "ServSafe, NRFSP, Prometric, or 360training certification active",
+              "next_step": "check_grease_interceptor"
+            },
+            {
+              "id": "cfpm_none",
+              "label": "No / Certification Not Yet Completed",
+              "description": "Manager has not taken or passed accredited exam",
+              "next_step": "disqualify_no_cfpm"
+            }
+          ]
+        },
+        "disqualify_no_cfpm": {
+          "id": "disqualify_no_cfpm",
+          "type": "disqualification",
+          "title": "Mandatory Prerequisite: Certified Food Manager Required",
+          "message": "Public health statutes prohibit issuing food establishment licenses without verified food safety management credentials on staff.",
+          "alternative_action": "Enroll in an accredited 8-hour ServSafe examination course. Once passing score is received, return to complete this licensing procedure.",
+          "options": [
+            {
+              "id": "retry_cfpm",
+              "label": "I have scheduled / verified CFPM",
+              "description": "Re-check prerequisite",
+              "next_step": "check_cfpm_certification"
+            }
+          ]
+        },
+        "check_grease_interceptor": {
+          "id": "check_grease_interceptor",
+          "type": "prerequisite_check",
+          "title": "Step 2 of 3: Commercial Kitchen Grease Trap & Plumbing",
+          "message": "Will your facility prepare, cook, fry, or reheat warm foods producing fats, oils, or grease (FOG)? If yes, an approved automatic grease interceptor (grease trap) sized per plumbing code is mandatory.",
+          "options": [
+            {
+              "id": "grease_trap_installed",
+              "label": "Yes, Grease Trap Installed & Servicing Contract Active",
+              "description": "Compliant interceptor plumbed to three-compartment sink",
+              "next_step": "issue_form_hlt_101"
+            },
+            {
+              "id": "low_risk_no_grease",
+              "label": "No, Pre-Packaged / Cold-Beverage Only (No Cooking / No FOG)",
+              "description": "Coffee bar, packaged smoothie, or dry baked goods only",
+              "next_step": "issue_form_hlt_101"
+            }
+          ]
+        },
+        "issue_form_hlt_101": {
+          "id": "issue_form_hlt_101",
+          "type": "form_issuance",
+          "title": "Prerequisites Satisfied: Official Form Issuance",
+          "message": "Healthcare licensing prerequisites satisfied! Download official Form HLT-101 below and submit to Counter 7 at the Civic Health Pavilion.",
+          "form_code": "Form HLT-101",
+          "form_title": "Commercial Food Establishment Operating License Application (Rev 2026)",
+          "form_file": "HLT-101_Food_Establishment_License.pdf",
+          "department_id": "healthcare",
+          "fill_in_instructions": "1. Provide corporate entity name and DBA establishment name in Section 1.\n2. Detail proposed menu items and food preservation methods in Section 3.\n3. Attach copy of CFPM manager certificate and kitchen floor plan.\n4. Submit to Counter 7 at Civic Health Pavilion.",
+          "required_attachments": [
+            "Certified Food Protection Manager (CFPM) certificate copy",
+            "Kitchen Schematic & Equipment Floor Plan (including 3-compartment sink & handwash stations)",
+            "Grease Interceptor Pumping Maintenance Contract (if cooking hot foods)",
+            "Water Quality Potability Test (if using private well) or Municipal Water Account ID",
+            "Menu Copy with Allergen Disclosure Statements",
+            "Plan Review & License Fee Receipt ($320.00 base + $150 plan review)"
+          ],
+          "fee_info": {
+            "amount": "$470.00 Total ($320 Annual Operating License + $150 Initial Plan Review)",
+            "payment_methods": "Company Check, Money Order, or Credit Card at Counter 7"
+          },
+          "submission_routing": {
+            "department": "Healthcare, Food Safety & Sanitation Department",
+            "desk": "Counter 7, Food & Facility Licensing Desk",
+            "building_address": "240 Wellness Parkway, Suite 210, Pixelvyne, PV 94022",
+            "hours": "Monday – Thursday: 8:00 AM – 4:00 PM; Friday: 8:00 AM – 1:00 PM",
+            "contact_phone": "(555) 019-7241",
+            "contact_email": "health-licensing@pixelvyne.gov",
+            "digital_upload_url": "https://health.pixelvyne.gov/apply"
+          },
+          "lead_time": "3 to 7 Business Days prior to pre-opening sanitary walk-through"
+        }
+      }
+    }
+  ]
+}

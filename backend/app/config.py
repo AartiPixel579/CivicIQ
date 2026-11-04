@@ -38,9 +38,17 @@ UNCONFIGURED_SERVICE_MESSAGE = (
 ACTIVE_DEPARTMENTS = ["engineering"]
 PLANNED_DEPARTMENTS = []
 
+# Environment & Deployment Mode
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower().strip()
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 # Database & pgvector settings
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgrespassword@localhost:5432/civiciq")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 VECTOR_STORE_PROVIDER = os.getenv("VECTOR_STORE_PROVIDER", "pgvector")
+
+# Allowed CORS Origins (comma-separated list for production)
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 # Vector & Embeddings Settings
 EMBEDDING_DIM = 128
@@ -84,4 +92,5 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 # Security
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "civiciq-edison-admin-2026")
+# In production, require an explicit secret from the environment. In dev/test, fallback safely.
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "" if IS_PRODUCTION else "civiciq-dev-admin-key")

@@ -26,12 +26,16 @@ class PgVectorStore:
         self._connected = False
 
     def _get_connection(self):
+        if not self.db_url or not str(self.db_url).strip():
+            raise ValueError("DATABASE_URL is not configured.")
         conn = psycopg2.connect(self.db_url)
         register_vector(conn)
         return conn
 
     def check_connection(self) -> bool:
         """Tests if PostgreSQL with pgvector is reachable."""
+        if not self.db_url or not str(self.db_url).strip():
+            return False
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:

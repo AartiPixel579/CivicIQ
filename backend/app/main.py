@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from .config import (
     APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY, APP_TAGLINE,
-    GENERATED_DRAFTS_DIR
+    GENERATED_DRAFTS_DIR, ENVIRONMENT, IS_PRODUCTION, ALLOWED_ORIGINS
 )
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
@@ -44,14 +44,58 @@ app = FastAPI(
     description=f"Citizen procedural assistant and grounded knowledge portal for {MUNICIPALITY_NAME}."
 )
 
-# Enable CORS for Next.js frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Configure CORS origins based on environment
+default_dev_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+cors_origins = default_dev_origins.copy()
+if ALLOWED_ORIGINS:
+    cors_origins.extend(ALLOWED_ORIGINS)
+
+# Deduplicate origins preserving order
+cors_origins = list(dict.fromkeys(cors_origins))
+
+if "*" in cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_origin_regex=r"https://.*\.vercel\.app" if IS_PRODUCTION else None,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+@app.on_event("startup")
+def on_startup():
+    """
+    On startup, verify vector store chunks. If empty (such as on a fresh Render deployment),
+    automatically trigger ingestion of official Edison Township municipal documents.
+    """
+    try:
+        stats = vector_store.get_stats()
+        if stats.get("total_chunks", 0) == 0:
+            logger.info("Vector store is empty on startup. Triggering automatic initial ingestion...")
+            from backend.scripts.ingest import run_ingestion_and_inventory
+            run_ingestion_and_inventory()
+            registry.reload()
+            logger.info(
+                "Initial ingestion completed successfully. Total indexed chunks: %d",
+                vector_store.get_stats().get("total_chunks", 0)
+            )
+    except Exception as e:
+        logger.warning(f"Automatic startup ingestion notice: {e}")
 
 @app.get("/api/health")
 def health_check():
@@ -575,8 +619,11 @@ def trigger_ingestion(
     and vector re-indexing for Edison Township.
     Requires header 'X-Admin-Key: <ADMIN_API_KEY>'.
     """
-    if not x_admin_key or x_admin_key != ADMIN_API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key header.")
+    if not ADMIN_API_KEY or not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access forbidden: invalid or missing X-Admin-Key header, or admin access is unconfigured."
+        )
 
     from backend.scripts.ingest import run_ingestion_and_inventory
     result = run_ingestion_and_inventory()
@@ -716,4 +763,9 @@ def download_draft_pdf(session_id: str, filename: str):
 def get_llm_status():
     """Returns non-sensitive status and availability for all configured free-first LLM providers."""
     return llm_manager.get_status()
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=port, reload=False)
 

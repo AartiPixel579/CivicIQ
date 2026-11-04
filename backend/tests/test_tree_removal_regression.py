@@ -239,17 +239,18 @@ class TestTreeRemovalRegression(unittest.TestCase):
         self.assertEqual(res.form_packet.form_file, "3.23.21 tree permit application.pdf")
 
     # --------------------------------------------------------------------------
-    # Test 11: "I need a road-opening permit." -> Strictly Road Opening, No Tree Removal
+    # Test 11: "I need a road-opening permit." -> Strictly Unconfigured Service
     # --------------------------------------------------------------------------
     def test_11_road_opening_no_tree_bleeding(self):
-        """Road-opening query must NEVER mention tree removal or tree flowchart."""
+        """Road-opening query must respond as unconfigured service and never mention tree removal or start a flow."""
         sid = "reg_test_11"
         res = chat_endpoint(ChatRequest(
             session_id=sid,
             message="I need a road-opening permit.",
             department_id="engineering"
         ))
-        self.assertEqual(res.active_flow_id, "street_opening_flow")
+        self.assertIn("This service hasn't been configured yet", res.message)
+        self.assertIsNone(res.active_flow_id)
         self.assertNotIn("tree removal", res.message.lower())
         self.assertNotIn("arborist", res.message.lower())
         self.assertNotIn("step_removing_trees_check", str(res))
@@ -259,8 +260,8 @@ class TestTreeRemovalRegression(unittest.TestCase):
     # --------------------------------------------------------------------------
     def test_12_cross_topic_history_isolation(self):
         """
-        After discussing road opening, resident asks 'Help me with tree removal procedure'.
-        The response MUST NOT return RoadOpenApp.pdf or road opening guidance.
+        After discussing road opening (unconfigured), resident asks 'Help me with tree removal procedure'.
+        The response MUST NOT return RoadOpenApp.pdf or road opening guidance, but cleanly start tree removal.
         """
         sid = "reg_test_12_bleed"
         
@@ -270,8 +271,8 @@ class TestTreeRemovalRegression(unittest.TestCase):
             message="I need to dig in the street for utility connection and need the road opening application form.",
             department_id="engineering"
         ))
-        self.assertIsNotNone(r1.form_packet)
-        self.assertEqual(r1.form_packet.form_code, "EDISON-DPW-ROADOPEN")
+        self.assertIn("This service hasn't been configured yet", r1.message)
+        self.assertIsNone(r1.form_packet)
 
         # Turn 2: Switch to Tree Removal
         r2 = chat_endpoint(ChatRequest(

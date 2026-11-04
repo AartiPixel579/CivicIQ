@@ -215,10 +215,19 @@ export const ChatInterface = ({
                     />
                   )}
 
-                  {/* Grounded Link Citations */}
-                  {msg.citations && msg.citations.length > 0 && (
-                    <RagCitationCard citations={msg.citations} />
-                  )}
+                  {/* Link Citations (deduplicating form already shown in form_packet) */}
+                  {(() => {
+                    if (!msg.citations || msg.citations.length === 0) return null;
+                    const nonDuplicate = msg.citations.filter((c) => {
+                      if (!msg.form_packet) return true;
+                      const fpFile = (msg.form_packet.form_file || '').toLowerCase();
+                      const cUrl = (c.url || '').toLowerCase();
+                      if (fpFile && cUrl.includes(fpFile)) return false;
+                      return true;
+                    });
+                    if (nonDuplicate.length === 0) return null;
+                    return <RagCitationCard citations={nonDuplicate} />;
+                  })()}
                 </div>
 
                 {/* Message Timestamp */}

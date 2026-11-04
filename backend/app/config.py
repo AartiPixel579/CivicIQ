@@ -21,7 +21,18 @@ ENGINEERING_PHONE = "(732) 248-7288"
 ENGINEERING_EMAIL = "engineering@edisonnj.gov"
 
 # Out-of-context response message
-OUT_OF_CONTEXT_MESSAGE = "Sorry, this information is out of our context. Please visit https://www.edisonnj.org/document_center/index.php for more information."
+OUT_OF_CONTEXT_MESSAGE = (
+    "Sorry, this information is out of our context. "
+    "I'm currently focused on Township of Edison Engineering services. "
+    "I can help with the Engineering-related permits and procedures available here. "
+    "Please visit https://www.edisonnj.org/document_center/index.php for other municipal services."
+)
+
+# Unconfigured / Unimplemented Engineering service message
+UNCONFIGURED_SERVICE_MESSAGE = (
+    "I'm currently able to assist with the Engineering services available in CivicIQ. "
+    "This service hasn't been configured yet."
+)
 
 # Active Department (Single focus: Engineering)
 ACTIVE_DEPARTMENTS = ["engineering"]

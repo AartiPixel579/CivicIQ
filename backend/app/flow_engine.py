@@ -19,6 +19,13 @@ class FlowSession:
         self.completed: bool = False
         self.form_packet: Optional[FormIssuanceDetails] = None
 
+    @property
+    def current_step(self) -> Optional[FlowStep]:
+        flow = registry.get_flow(self.department_id, self.flow_id)
+        if flow and self.current_step_id:
+            return flow.steps.get(self.current_step_id)
+        return None
+
 class FlowEngine:
     def __init__(self):
         self.sessions: Dict[str, FlowSession] = {}

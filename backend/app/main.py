@@ -285,6 +285,37 @@ def chat_endpoint(req: ChatRequest):
 
     # Case 1: Active procedural flow (advanced by button option selection OR typed natural language!)
     if session and not session.completed:
+        # Check if the user is asking an informational side question (e.g. "How much?", "Is there any fee?", "What about documents?", "Where do I submit it?")
+        from .services.service_intent_service import service_intent_service
+        intent_res = service_intent_service.detect_intent(req.message, history=history)
+        if intent_res.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process"] and not req.selected_option_id:
+            svc_id = intent_res.service_id
+            if svc_id == "other_engineering" and session.flow_id:
+                if "tree" in session.flow_id:
+                    svc_id = "tree_removal"
+                elif "soil" in session.flow_id:
+                    svc_id = "soil_import"
+                elif "street" in session.flow_id or "road" in session.flow_id:
+                    svc_id = "road_opening"
+                elif "site" in session.flow_id:
+                    svc_id = "site_improvement"
+
+            detail_msg = service_intent_service.get_detail_response(svc_id, intent_res.detail_type)
+            if detail_msg:
+                history.append({"role": "user", "content": req.message})
+                history.append({"role": "assistant", "content": detail_msg})
+                CHAT_HISTORIES[req.session_id] = history[-10:]
+                return ChatResponse(
+                    session_id=req.session_id,
+                    message=detail_msg,
+                    mode="flow",
+                    options=session.current_step.options if session and session.current_step else [],
+                    current_step=session.current_step if session else None,
+                    active_flow_id=session.flow_id if session else None,
+                    department_id=session.department_id if session else "engineering",
+                    completed=False
+                )
+
         # Check if the user is attempting to completely change topics (e.g. asking about road opening while in tree flow)
         different_flow = rag_engine.detect_flow_intent(req.message, req.department_id)
         if different_flow and different_flow[1] != session.flow_id:
@@ -407,11 +438,18 @@ def chat_endpoint(req: ChatRequest):
         "where is the application", "give me the form", "send me the form", "form packet"
     ])
 
-    if rec and rec.is_application_form and rag_res.grounded and not is_clarifying_question:
-        if has_apply_or_form_intent or rag_res.form_packet is not None:
-            form_rec_dict = rec.model_dump()
-            if has_apply_or_form_intent and not any(phrase in final_message.lower() for phrase in ["help you fill", "prepare this application"]):
-                final_message += f"\n\nWould you like me to help you fill out this application?"
+    is_unconfigured_or_out_of_context = (
+        "out of our context" in final_message.lower() or
+        "hasn't been configured yet" in final_message.lower()
+    )
+
+    if rec and rec.is_application_form and rag_res.grounded and not is_clarifying_question and not is_unconfigured_or_out_of_context:
+        # Only offer conversational form filling for supported/verified services
+        if rec.form.form_id in ["tree_removal", "soil_import", "soil_export"]:
+            if has_apply_or_form_intent or rag_res.form_packet is not None:
+                form_rec_dict = rec.model_dump()
+                if has_apply_or_form_intent and not any(phrase in final_message.lower() for phrase in ["help you fill", "prepare this application"]):
+                    final_message += f"\n\nWould you like me to help you fill out this application?"
 
     # Filter citations to ensure internal documents are never exposed in ChatResponse, and deduplicate by URL
     seen_urls = set()

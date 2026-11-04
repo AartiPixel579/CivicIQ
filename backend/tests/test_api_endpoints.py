@@ -38,7 +38,7 @@ class TestApiEndpoints(unittest.TestCase):
     def test_03_rag_chat_setbacks(self):
         req = ChatRequest(
             session_id="test_sess_rag_1",
-            message="What are the setback distances for residential zoning in Edison?",
+            message="What are the setback distances for residential zone in Edison?",
             department_id="engineering"
         )
         res = chat_endpoint(req)

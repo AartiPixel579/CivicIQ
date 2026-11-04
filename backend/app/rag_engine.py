@@ -49,21 +49,32 @@ class GroundedRagEngine:
         """
         Detects if user intent is procedural (starting a multi-step engineering flow).
         Uses ServiceIntentService to accurately classify services.
+        Separates specific detail inquiries (fees, documents, submission) from workflow initiation.
         """
-        text = user_text.lower().strip()
-
-        # If question is informational (asking about documents, fees, setbacks, or requesting a form download), don't hijack into a flow
-        if any(phrase in text for phrase in [
-            "can i download", "where can i download", "give me the form", "download the form", "download the application",
-            "what documents", "what document", "what do i need to attach", "documents do i need", "what attachments",
-            "how much is the fee", "fee schedule", "what is the fee", "what are the fees", "setback", "setbacks"
-        ]):
-            return None
-
         from .services.service_intent_service import service_intent_service
         intent = service_intent_service.detect_intent(user_text, history=history)
 
-        if intent.has_flowchart and intent.flow_id:
+        # Never hijack detail inquiries (fee, documents, submission, turnaround, complete process) into a workflow
+        if intent.detail_type not in ["procedure", "emergency"]:
+            return None
+
+        # Never hijack form requests into a procedural workflow
+        if intent.intent_type in ["form_request", "fee_inquiry", "document_inquiry", "submission_inquiry"]:
+            return None
+
+        text = user_text.lower().strip()
+        # Only start a flow when the resident actively wants procedural guidance or workflow initiation
+        is_workflow_initiation = any(phrase in text for phrase in [
+            "want to", "planning to", "need to", "help me with", "guide me", "procedure",
+            "workflow", "how to remove", "how to import", "how to export", "how to cut",
+            "steps for", "start"
+        ]) or (
+            intent.confidence >= 0.90 and 
+            intent.has_flowchart and
+            not any(w in text for w in ["cost", "fee", "price", "pay", "charge", "document", "attachment", "form", "download", "where", "how much"])
+        )
+
+        if is_workflow_initiation and intent.is_supported and intent.has_flowchart and intent.flow_id:
             return ("engineering", intent.flow_id)
 
         return None
@@ -191,118 +202,9 @@ class GroundedRagEngine:
                 lead_time="7 to 10 Business Days"
             )
 
-        # 3. Site Improvement Permit Application with Checklist
-        if any(w in context_text for w in ["site improvement", "site improvements", "sip application", "sip permit", "ground disturbance", "impervious surface", "site checklist"]):
-            return FormIssuanceDetails(
-                form_code="EDISON-ENG-SIP",
-                form_title="Township of Edison Site Improvement Permit Application with Checklist",
-                form_file="SIP_Application.pdf",
-                pdf_download_url="/api/forms/engineering/SIP_Application.pdf",
-                department_id="engineering",
-                fill_in_instructions="1. Complete owner, contractor, and design engineer information.\n2. Complete Site Improvement Checklist (Items 1-25).\n3. Attach 2 signed/sealed engineering site plans.\n4. Submit to Division of Engineering.",
-                required_attachments=[
-                    "Two (2) signed and sealed copies of Site Improvement Engineering Plan",
-                    "Completed Site Improvement Checklist",
-                    "Stormwater management and runoff calculation report",
-                    "Engineering review fee and inspection escrow deposit"
-                ],
-                fee_info=FeeInfo(
-                    amount="Engineering review fee per municipal rate schedule",
-                    payment_methods="Check payable to 'Township of Edison'"
-                ),
-                submission_routing=SubmissionRouting(
-                    department="Department of Engineering",
-                    desk="Engineering Division",
-                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                ),
-                lead_time="10 to 14 Business Days"
-            )
-
-        # 4. Road Opening / Street Excavation
-        normalized_t = t.replace("-", " ")
-        is_road_explicit = any(w in normalized_t for w in ["road opening", "street opening", "pavement opening", "road excavation", "saw cut", "trench", "curb cut", "driveway apron", "pavement cut"])
-        if is_road_explicit or any(w in context_text.replace("-", " ") for w in ["road opening", "street opening", "road excavation", "saw cut", "pavement opening", "public right of way"]):
-            return FormIssuanceDetails(
-                form_code="EDISON-DPW-ROADOPEN",
-                form_title="Edison Township Street Opening & Road Excavation Application",
-                form_file="RoadOpenApp.pdf",
-                pdf_download_url="/api/forms/engineering/RoadOpenApp.pdf",
-                department_id="engineering",
-                fill_in_instructions="1. Affix NJ 811 Call Before You Dig ticket number.\n2. Submit sketch of proposed pavement trench dimensions.\n3. Post $5,000 restoration guarantee bond.\n4. Submit online via the official municipal portal at https://www.edisonnj.org/document_center/index.php.",
-                required_attachments=[
-                    "NJ 811 One-Call Utility Mark-Out confirmation ticket",
-                    "$5,000 Refundable Restoration Guarantee Deposit / Surety Bond",
-                    "Traffic Control Detour Plan (if blocking public lanes)",
-                    "Certificate of Commercial Liability Insurance naming Township of Edison"
-                ],
-                fee_info=FeeInfo(
-                    amount="$150 Filing Fee + $5,000 Restoration Guarantee Bond",
-                    payment_methods="Certified Bank Check or Bond"
-                ),
-                submission_routing=SubmissionRouting(
-                    department="Department of Engineering",
-                    desk="Engineering Division",
-                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                ),
-                lead_time="5 to 7 Business Days"
-            )
-
-        # 2. Sewer Connection
-        if any(w in context_text for w in ["sewer", "tap", "connection", "lateral", "sanitary"]) and not any(w in context_text for w in ["tree", "soil", "dirt"]):
-            return FormIssuanceDetails(
-                form_code="EDISON-ENG-SEWER",
-                form_title="Township of Edison Sewer Connection Charge Application",
-                form_file="Sewer_Connection_Charge_Applications.pdf",
-                pdf_download_url="/api/forms/engineering/Sewer_Connection_Charge_Applications.pdf",
-                department_id="engineering",
-                fill_in_instructions="1. Enter parcel Block, Lot, and property owner details.\n2. Fill out plumbing fixture unit count worksheet.\n3. Attach plumbing schematic.\n4. Submit online via the official municipal portal at https://www.edisonnj.org/document_center/index.php.",
-                required_attachments=[
-                    "Plumbing Fixture Unit Calculation Schedule",
-                    "Civil engineering utility connection schematic",
-                    "Copy of approved building or engineering permit",
-                    "Sewer connection review fee payment"
-                ],
-                fee_info=FeeInfo(
-                    amount="Calculated per fixture unit according to municipal rate code",
-                    payment_methods="Check payable to 'Township of Edison Sewer Utility'"
-                ),
-                submission_routing=SubmissionRouting(
-                    department="Department of Engineering",
-                    desk="Sewer Utility Division",
-                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                ),
-                lead_time="7 to 10 Business Days"
-            )
-
-        # 5. Residential Zoning Permit (Dwelling, Addition, Shed, Pool, Deck, Fence)
-        if any(w in context_text for w in [
-            "zoning permit", "zoning application", "new dwelling", "addition", "shed permit",
-            "deck permit", "pool permit", "fence permit", "residential construction"
-        ]) and not any(w in context_text for w in ["tree", "soil", "dirt", "road opening", "street opening", "sewer", "site improvement"]):
-            return FormIssuanceDetails(
-                form_code="EDISON-ENG-ZONING",
-                form_title="Township of Edison Official Zoning Permit Application Form",
-                form_file="Zoning_Permit_Application_Edison.pdf",
-                pdf_download_url="/api/forms/engineering/Zoning_Permit_Application_Edison.pdf",
-                department_id="engineering",
-                fill_in_instructions="1. Complete Property Owner data, Work Site Address, Block, and Lot.\n2. Attach two (2) signed and sealed surveys.\n3. Submit to Division of Zoning, 100 Municipal Blvd.",
-                required_attachments=[
-                    "Two (2) copies of current property survey sealed by NJ Licensed Surveyor",
-                    "Plot plan showing exact dimensions and setbacks",
-                    "Application review fee"
-                ],
-                fee_info=FeeInfo(
-                    amount="Fee schedule per municipal ordinance ($50 - $200)",
-                    payment_methods="Check payable to 'Township of Edison' or Credit Card"
-                ),
-                submission_routing=SubmissionRouting(
-                    department="Department of Planning and Engineering",
-                    desk="Division of Zoning, Edison Municipal Complex",
-                    building_address="100 Municipal Boulevard, Edison, NJ 08817",
-                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                ),
-                lead_time="10 to 14 Business Days"
-            )
+        # Unimplemented / Unconfigured services (Road Opening, Site Improvement, Sewer, Zoning)
+        # do not return official form packets until configured and verified.
+        return None
 
         return None
 
@@ -325,6 +227,18 @@ class GroundedRagEngine:
         """
         q = query.lower().strip()
         hist = history or []
+
+        # If user is asking for specific details (fee, documents, submission, etc.), do not intercept with flow steps
+        from .services.service_intent_service import service_intent_service
+        intent_check = service_intent_service.detect_intent(query, history=history)
+        if intent_check.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process"]:
+            return None
+
+        # If user is asking for specific details (fee, documents, submission, etc.), do not intercept with flow steps
+        from .services.service_intent_service import service_intent_service
+        intent_check = service_intent_service.detect_intent(query, history=history)
+        if intent_check.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process"]:
+            return None
 
         # Find the last assistant message in history to identify conversational turn
         last_bot_msg = ""
@@ -415,20 +329,10 @@ class GroundedRagEngine:
             is_non_emergency = any(w in q for w in ["not an emergency", "non-emergency", "non emergency", "planned", "routine", "not urgent", "no"])
             if is_non_emergency and not any(w in q for w in ["yes, it is urgent", "yes it is emergency", "it is urgent", "is emergency"]):
                 msg = (
-                    "### 1. Applicable Procedure\n"
-                    "For planned or non-emergency tree removal in Edison Township, municipal regulations require that you obtain an approved **Tree Removal Permit** from the Division of Engineering prior to cutting down or removing any regulated trees on your property.\n\n"
-                    "### 2. Important Requirements & Supporting Documents\n"
-                    "• **Completed Municipal Application**: Official Township of Edison Tree Permit (Removal/Replacement/Conservation) Application.\n"
-                    "• **Property Sketch or Survey**: A plot plan or survey showing property boundaries and indicating the exact location, diameter, and species of the trees proposed for removal.\n"
-                    "• **Contractor Information**: Details of the NJ licensed tree care operator performing the removal.\n"
-                    "• **Standard Application Fee**: $25.00 for residential removal of 1 to 3 trees (review fee is waived for senior citizens aged 62+).\n\n"
-                    "### 3. Next Steps for Resident\n"
-                    "1. Download and complete the official municipal application form provided below.\n"
-                    "2. Attach a property sketch showing tree locations and diameter measurements.\n"
-                    "3. Submit the completed application and $25 review fee to the Division of Engineering.\n"
-                    "4. Await engineering review and permit issuance before commencing any tree cutting.\n\n"
-                    "### Relevant Official Documents & Forms\n"
-                    "- [Township of Edison Official Tree Removal Application Form (PDF)](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf)"
+                    "Under Township of Edison Tree Protection regulations (Chapter 25-8), a **Tree Removal Permit is required** before removing mature trees on your property.\n\n"
+                    "1. **Submit application:** Complete and submit the official Tree Removal Permit Application.\n"
+                    "2. **Mark trees on site:** Mark trees proposed for removal with red ribbon or paint for township inspection.\n"
+                    "3. **Await inspection:** An engineering inspector will visit the site within 5–10 business days before removal can proceed."
                 )
                 return (msg, self.match_official_form_packet("tree removal", force=True))
             else:
@@ -450,20 +354,7 @@ class GroundedRagEngine:
 
             if is_valid_hazard:
                 msg = (
-                    "### 1. Applicable Procedure\n"
-                    "Under official Edison Township tree preservation guidelines, an emergency removal is permitted when a tree is dead, dying, or presents an imminent hazard to life, structures, or public safety. You are authorized to proceed with immediate removal to eliminate danger, provided that you submit your official municipal permit application concurrently with documentation of the emergency.\n\n"
-                    "### 2. Important Requirements & Supporting Documents\n"
-                    "• **Hazard Documentation**: Clear photographic evidence showing the dead, dying, or structurally dangerous condition of the tree, OR a certified letter from a licensed tree expert/arborist confirming imminent danger.\n"
-                    "• **Completed Municipal Application**: Official Township of Edison Tree Permit (Removal/Replacement/Conservation) Application.\n"
-                    "• **Standard Application Fee**: $25.00 filing fee (fee waived for senior citizens aged 62+).\n"
-                    "• **Property Details**: Block, Lot, property address, and property owner authorization.\n\n"
-                    "### 3. Next Steps for Resident\n"
-                    "1. Document the hazard immediately by taking clear photos or obtaining an arborist letter.\n"
-                    "2. Proceed with safe emergency removal of the hazardous tree to eliminate imminent risk.\n"
-                    "3. Complete the official municipal application form below.\n"
-                    "4. Submit the completed application and hazard evidence concurrently to the Edison Township Division of Engineering.\n\n"
-                    "### Relevant Official Documents & Forms\n"
-                    "- [Township of Edison Official Tree Removal Application Form (PDF)](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf)"
+                    "Under Edison Township guidelines, emergency removal is permitted. If it's an emergency, take photos of the hazardous tree or obtain a certified letter from a licensed arborist/forester confirming that it is dead, dying or an imminent danger. You can then safely remove the tree immediately and submit the Tree Removal Permit Application concurrently with removal via the Edison Document Center."
                 )
                 return (msg, self.match_official_form_packet("tree removal", force=True))
             else:
@@ -480,31 +371,16 @@ class GroundedRagEngine:
         if "part of a subdivision" in last_bot_msg:
             if re.search(r'\b(no|nope|not|negative|never)\b', q):
                 msg = (
-                    "### 1. Applicable Procedure\n"
-                    "Under official Edison Township municipal guidelines, because your project does not involve removing trees and is NOT "
-                    "part of a subdivision or demolition permit from Code Enforcement, **a Tree Removal Permit is NOT required**.\n\n"
-                    "### 2. Important Requirements & Supporting Documents\n"
-                    "• No municipal tree permit application or fee is required for this scope of work.\n"
-                    "• If your project scope changes to include tree cutting or land clearing, an engineering permit review will be required.\n\n"
-                    "### 3. Next Steps for Resident\n"
-                    "You may proceed with your project without filing a tree removal application. For general municipal inquiries, visit https://www.edisonnj.org/document_center/index.php."
+                    "Under Township of Edison guidelines, because your project does not involve removing trees and is not part of a subdivision or demolition, a **Tree Removal Permit is NOT required**.\n\n"
+                    "You may proceed with your project without filing a tree removal application."
                 )
                 return (msg, None)
             else:
                 msg = (
-                    "### 1. Applicable Procedure\n"
-                    "Under official Edison Township guidelines, because your project is part of a subdivision "
-                    "or involves a demolition permit from Code Enforcement, **a Tree Removal Permit is required** before removing any trees or clearing land.\n\n"
-                    "### 2. Important Requirements & Supporting Documents\n"
-                    "• **Completed Municipal Application**: Official Township of Edison Tree Permit (Removal/Replacement/Conservation) Application.\n"
-                    "• **Site / Demolition Plan**: Sealed site survey showing tree locations, limits of disturbance, and tree protection measures.\n"
-                    "• **Tree Replacement Plan**: Mitigation plan or fund contribution conforming to Township Code Chapter 25.\n\n"
-                    "### 3. Next Steps for Resident\n"
-                    "1. Download and complete the official Tree Removal Application Form below.\n"
-                    "2. Coordinate with your engineer to submit the tree application alongside your Planning Board or Code Enforcement package.\n"
-                    "3. Submit all materials to the Division of Engineering.\n\n"
-                    "### Relevant Official Documents & Forms\n"
-                    "- [Township of Edison Official Tree Removal Application Form (PDF)](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf)"
+                    "Under Township of Edison Code (Chapter 25-8), a **Tree Removal Permit is required** prior to clearing trees for a subdivision or demolition project.\n\n"
+                    "1. **Submit permit application:** Submit the completed Tree Removal Permit Application along with your approved Planning/Zoning Board resolution or demolition permit.\n"
+                    "2. **Include tree conservation plan:** Provide the required site plan showing tree protection and replacement schedule.\n"
+                    "3. **Await engineering clearance:** Await engineering division approval before clearing or tree work begins."
                 )
                 return (msg, self.match_official_form_packet("tree removal", force=True))
 
@@ -512,80 +388,37 @@ class GroundedRagEngine:
 
     def _build_soil_import_required_msg(self) -> str:
         return (
-            "### 1. Applicable Procedure\n"
-            "Because you are importing 10 cubic yards or more of soil onto your property in Edison Township, a **Soil Importation Permit** is required under municipal regulations (Chapter 31) prior to bringing any fill onto the site.\n\n"
-            "### 2. Important Requirements & Supporting Documents\n"
-            "• **Certified Clean Fill Lab Analysis**: Laboratory chemical analysis certifying that fill material is uncontaminated and free of foreign debris.\n"
-            "• **Property Survey & Grading Plan**: Certified property survey showing proposed fill placement, existing grades, and proposed finished grading contours.\n"
-            "• **Designated Haul Route**: Approved truck haul route through Edison Township roadways.\n"
-            "• **Filing Fee & Engineering Escrow**: Standard municipal review fee and engineering escrow deposit.\n\n"
-            "### 3. Next Steps for Resident\n"
-            "1. Download and complete the official **Township of Edison Soil Importation Permit Application** below.\n"
-            "2. Obtain clean fill certification documentation from your supplier or source site.\n"
-            "3. Prepare a grading sketch or survey showing where soil will be placed.\n"
-            "4. Submit the completed application and attachments to the Division of Engineering.\n"
-            "5. Await engineering review and permit issuance before transporting soil.\n\n"
-            "### Relevant Official Documents & Forms\n"
-            "- [Township of Edison Soil Importation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Importation_Appl.pdf)"
+            "Under Township of Edison municipal regulations (Chapter 31), importing 10 cubic yards or more of soil requires an approved **Soil Importation Permit** prior to delivery.\n\n"
+            "1. **Submit application:** Complete and submit the official Soil Importation Permit Application.\n"
+            "2. **Provide documentation:** Attach a certified laboratory clean fill analysis and a property survey with grading plan showing proposed fill placement.\n"
+            "3. **Await engineering approval:** Obtain permit approval from the Division of Engineering before transporting soil onto the property."
         )
 
     def _build_soil_export_required_msg(self) -> str:
         return (
-            "### 1. Applicable Procedure\n"
-            "Because you are exporting 10 cubic yards or more of soil from your property in Edison Township, a **Soil Exportation Permit** is required under municipal regulations (Chapter 31) prior to removing soil from the site.\n\n"
-            "### 2. Important Requirements & Supporting Documents\n"
-            "• **Topographical Survey with Cut/Fill Calculations**: Prepared and certified by a NJ licensed professional engineer or surveyor.\n"
-            "• **Soil Erosion & Sediment Control Certification**: Measures to prevent runoff and dust during excavation.\n"
-            "• **Designated Truck Haul Route**: Approved municipal travel route through Edison.\n"
-            "• **Filing Fee & Performance Guarantee**: Standard municipal fee and restoration guarantee bond.\n\n"
-            "### 3. Next Steps for Resident\n"
-            "1. Download and complete the official **Township of Edison Soil Exportation Permit Application** below.\n"
-            "2. Coordinate with your engineer/contractor to prepare cut/fill calculations and haul route.\n"
-            "3. Submit the completed application and attachments to the Division of Engineering.\n"
-            "4. Await engineering review and permit issuance before hauling soil off-site.\n\n"
-            "### Relevant Official Documents & Forms\n"
-            "- [Township of Edison Soil Exportation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Exportation_App.pdf)"
+            "Under Township of Edison municipal regulations (Chapter 31), exporting 10 cubic yards or more of soil requires an approved **Soil Exportation Permit** prior to hauling.\n\n"
+            "1. **Submit application:** Complete and submit the official Soil Exportation Permit Application.\n"
+            "2. **Provide documentation:** Attach a topographical survey with cut/fill calculations and your designated truck haul route.\n"
+            "3. **Await engineering approval:** Obtain permit approval from the Division of Engineering before moving soil off-site."
         )
 
     def _build_soil_not_required_msg(self) -> str:
         return (
-            "### 1. Applicable Procedure\n"
-            "Under official Township of Edison engineering guidelines, because your project involves **less than 10 cubic yards of soil**, a municipal Soil Import / Export Permit is **NOT required**.\n\n"
-            "### 2. Important Requirements & Environmental Best Practices\n"
-            "• **No Permit or Fee**: No municipal soil permit application, review fee, or escrow deposit is required for quantities under 10 cubic yards.\n"
-            "• **Drainage Protection**: When placing soil, ensure that grading does not alter natural drainage patterns or direct stormwater runoff onto neighboring properties.\n"
-            "• **Ground Disturbance Check**: If your project also involves major site grading (disturbing 1,250 sq.ft. or more) or new impervious coverage (500 sq.ft. or more), an engineering Site Improvement review may be required.\n\n"
-            "### 3. Next Steps for Resident\n"
-            "You may proceed with your project without filing a soil permit application. If you have additional engineering or zoning questions, visit https://www.edisonnj.org/document_center/index.php."
+            "Under official Township of Edison engineering guidelines, because your project involves **less than 10 cubic yards of soil**, a municipal Soil Import/Export Permit is **NOT required**.\n\n"
+            "Ensure that soil placement does not alter natural drainage patterns or direct runoff onto neighboring properties."
         )
 
     def _build_site_improvement_required_msg(self) -> str:
         return (
-            "### 1. Applicable Procedure\n"
-            "Under official Edison Township engineering regulations, your project requires an approved **Site Improvement Permit (SIP)** with Checklist prior to commencing site work, grading, or ground disturbance.\n\n"
-            "### 2. Important Requirements & Supporting Documents\n"
-            "• **Site Improvement Plan**: Two (2) signed and sealed copies of engineering site plans prepared by a NJ licensed professional engineer.\n"
-            "• **Completed 25-Point Checklist**: Official municipal Site Improvement Checklist completed by applicant or engineer.\n"
-            "• **Stormwater Management Report**: Runoff calculations and drainage design.\n"
-            "• **Review & Inspection Escrow**: Engineering review fee and inspection escrow deposit.\n\n"
-            "### 3. Next Steps for Resident\n"
-            "1. Download and complete the official **Township of Edison Site Improvement Permit Application with Checklist** below.\n"
-            "2. Work with your licensed civil engineer to prepare sealed site improvement plans.\n"
-            "3. Submit the completed application, checklist, plans, and review fees to the Division of Engineering.\n"
-            "4. Await engineering review and permit issuance before commencing any excavation or grading.\n\n"
-            "### Relevant Official Documents & Forms\n"
-            "- [Township of Edison Site Improvement Permit Application with Checklist (PDF)](/api/forms/engineering/SIP_Application.pdf)"
+            "Under Township of Edison engineering regulations, your project requires an approved **Site Improvement Permit (SIP)** with Checklist prior to commencing ground disturbance.\n\n"
+            "1. **Submit application & checklist:** Complete the official Site Improvement Application and 25-point checklist.\n"
+            "2. **Provide sealed plans:** Attach signed and sealed site grading and drainage plans prepared by a NJ licensed engineer.\n"
+            "3. **Await engineering approval:** Obtain permit issuance before any excavation or site disturbance begins."
         )
 
     def _build_site_improvement_not_required_msg(self) -> str:
         return (
-            "### 1. Applicable Procedure\n"
-            "Under official Township of Edison guidelines, a **Site Improvement Permit may not be required** for your project because your work does not exceed 500 sq.ft. of impervious coverage, does not exceed 1,250 sq.ft. of disturbance, and does not alter drainage or grading.\n\n"
-            "### 2. Important Requirements & Next Steps\n"
-            "• **Final Determination**: A final determination will be confirmed when your standard Zoning Permit or Building Permit application is reviewed by the township.\n"
-            "• If your project scope expands to exceed coverage thresholds or includes site grading, a Site Improvement review will then be required.\n\n"
-            "### 3. Next Steps for Resident\n"
-            "You may proceed with submitting your standard zoning/building permit application. For municipal document references, visit https://www.edisonnj.org/document_center/index.php."
+            "Under Township of Edison engineering guidelines, a **Site Improvement Permit is not required** because your project does not exceed 500 sq. ft. of impervious coverage and does not alter site drainage or grading."
         )
 
     def handle_soil_flow(
@@ -824,93 +657,28 @@ class GroundedRagEngine:
                 query=query
             )
 
-        # 2. Check for multi-turn tree removal procedural guidance
-        tree_flow_res = self.handle_tree_removal_flow(query, history=history)
-        if tree_flow_res:
-            msg, packet = tree_flow_res
-            citations = []
-            if packet:
-                citations.append(
-                    RagCitation(
-                        url=packet.pdf_download_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id="engineering",
-                        relevance_score=1.0,
-                        excerpt=f"Official Township of Edison Tree Permit (Removal/Replacement/Conservation) Application. Code: {packet.form_code}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service="tree_removal",
-                        verification_status="verified"
-                    )
-                )
-            return RagResult(
-                answer=msg,
-                citations=citations,
-                grounded=True,
-                query=query,
-                form_packet=packet
-            )
-
-        # 3. Check for multi-turn soil import/export procedural guidance
-        soil_flow_res = self.handle_soil_flow(query, history=history)
-        if soil_flow_res:
-            msg, packet = soil_flow_res
-            citations = []
-            if packet:
-                citations.append(
-                    RagCitation(
-                        url=packet.pdf_download_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id="engineering",
-                        relevance_score=1.0,
-                        excerpt=f"Official Township of Edison {packet.form_title}. Code: {packet.form_code}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service=packet.form_code,
-                        verification_status="verified"
-                    )
-                )
-            return RagResult(
-                answer=msg,
-                citations=citations,
-                grounded=True,
-                query=query,
-                form_packet=packet
-            )
-
-        # 4. Check for multi-turn site improvement procedural guidance
-        site_flow_res = self.handle_site_improvement_flow(query, history=history)
-        if site_flow_res:
-            msg, packet = site_flow_res
-            citations = []
-            if packet:
-                citations.append(
-                    RagCitation(
-                        url=packet.pdf_download_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id="engineering",
-                        relevance_score=1.0,
-                        excerpt=f"Official Township of Edison {packet.form_title}. Code: {packet.form_code}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service=packet.form_code,
-                        verification_status="verified"
-                    )
-                )
-            return RagResult(
-                answer=msg,
-                citations=citations,
-                grounded=True,
-                query=query,
-                form_packet=packet
-            )
-
-        # 5. Service-aware intent and ambiguity check
+        # 2. Service-aware intent detection & unconfigured service isolation
         from .services.service_intent_service import service_intent_service
         intent_res = service_intent_service.detect_intent(query, history=history)
+
+        if intent_res.service_id == "out_of_context":
+            return RagResult(
+                answer=OUT_OF_CONTEXT_MESSAGE,
+                citations=[],
+                grounded=False,
+                query=query
+            )
+
+        # Prompt Section 3: Do NOT activate unimplemented services (Street Opening, Sewer Connection, Zoning, Site Improvement)
+        if intent_res.service_id == "unconfigured_service" or not intent_res.is_supported:
+            from .config import UNCONFIGURED_SERVICE_MESSAGE
+            return RagResult(
+                answer=UNCONFIGURED_SERVICE_MESSAGE,
+                citations=[],
+                grounded=True,
+                query=query
+            )
+
         if intent_res.is_ambiguous and intent_res.clarifying_question:
             return RagResult(
                 answer=intent_res.clarifying_question,
@@ -919,13 +687,123 @@ class GroundedRagEngine:
                 query=query,
                 form_packet=None
             )
-        if intent_res.service_id == "out_of_context":
-            return RagResult(
-                answer=OUT_OF_CONTEXT_MESSAGE,
-                citations=[],
-                grounded=False,
-                query=query
-            )
+
+        # 2.5 Intent-Based Detail Retrieval (Progressive Disclosure)
+        # Directly answer specific detail inquiries (fee, documents, submission, turnaround, complete process)
+        if intent_res.detail_type not in ["procedure", "emergency"]:
+            detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type)
+            if detail_msg:
+                citations = []
+                packet = self.match_official_form_packet(query, history=history, force=False)
+                if packet:
+                    citations.append(
+                        RagCitation(
+                            url=packet.pdf_download_url,
+                            title=packet.form_title,
+                            category="Application Form",
+                            department_id="engineering",
+                            relevance_score=1.0,
+                            excerpt=f"Official Township Application Form: {packet.form_title}. Form Code: {packet.form_code}. Download: {packet.pdf_download_url}",
+                            visibility="public",
+                            document_type="application_form",
+                            service=packet.form_code,
+                            verification_status="verified"
+                        )
+                    )
+                return RagResult(
+                    answer=detail_msg,
+                    citations=citations,
+                    grounded=True,
+                    query=query,
+                    form_packet=packet
+                )
+
+        # 3. Check for multi-turn tree removal procedural guidance (Verified Service)
+        if intent_res.service_id == "tree_removal":
+            tree_flow_res = self.handle_tree_removal_flow(query, history=history)
+            if tree_flow_res:
+                msg, packet = tree_flow_res
+                citations = []
+                if packet:
+                    citations.append(
+                        RagCitation(
+                            url=packet.pdf_download_url,
+                            title=packet.form_title,
+                            category="Application Form",
+                            department_id="engineering",
+                            relevance_score=1.0,
+                            excerpt=f"Official Township of Edison Tree Permit Application. Download: {packet.pdf_download_url}",
+                            visibility="public",
+                            document_type="application_form",
+                            service="tree_removal",
+                            verification_status="verified"
+                        )
+                    )
+                return RagResult(
+                    answer=msg,
+                    citations=citations,
+                    grounded=True,
+                    query=query,
+                    form_packet=packet
+                )
+
+        # 4. Check for multi-turn soil import/export procedural guidance (Verified Service)
+        if intent_res.service_id in ["soil_import", "soil_export", "soil_movement"]:
+            soil_flow_res = self.handle_soil_flow(query, history=history)
+            if soil_flow_res:
+                msg, packet = soil_flow_res
+                citations = []
+                if packet:
+                    citations.append(
+                        RagCitation(
+                            url=packet.pdf_download_url,
+                            title=packet.form_title,
+                            category="Application Form",
+                            department_id="engineering",
+                            relevance_score=1.0,
+                            excerpt=f"Official Township of Edison {packet.form_title}. Download: {packet.pdf_download_url}",
+                            visibility="public",
+                            document_type="application_form",
+                            service=packet.form_code,
+                            verification_status="verified"
+                        )
+                    )
+                return RagResult(
+                    answer=msg,
+                    citations=citations,
+                    grounded=True,
+                    query=query,
+                    form_packet=packet
+                )
+
+        # 5. Emergency inquiry detail fallback
+        if intent_res.detail_type == "emergency":
+            detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type)
+            if detail_msg:
+                packet = self.match_official_form_packet(query, history=history, force=True)
+                citations = []
+                if packet:
+                    citations.append(
+                        RagCitation(
+                            url=packet.pdf_download_url,
+                            title=packet.form_title,
+                            category="Application Form",
+                            department_id="engineering",
+                            relevance_score=1.0,
+                            excerpt=f"Official Township Application Form: {packet.form_title}. Form Code: {packet.form_code}. Download: {packet.pdf_download_url}",
+                            visibility="public",
+                            document_type="application_form",
+                            service=packet.form_code,
+                            verification_status="verified"
+                        )
+                    )
+                return RagResult(
+                    answer=detail_msg,
+                    citations=citations,
+                    grounded=True,
+                    query=query,
+                    form_packet=packet
+                )
 
         # 6. Search vector store
         dept = department_id if department_id else "engineering"
@@ -937,6 +815,7 @@ class GroundedRagEngine:
         )
 
         # Filter out internal documents from resident citations and deduplicate by URL
+        # Prompt Section 4: Correct source matching: Grounded citations must match the specific service requested
         seen_urls = set()
         citations = []
         for c in raw_citations:
@@ -944,6 +823,15 @@ class GroundedRagEngine:
                 continue
             if "permit flow chart" in c.title.lower() or "flowchart" in getattr(c, "category", "").lower() or "permit_flow_charts" in c.url.lower():
                 continue
+            
+            c_text = (c.title + " " + getattr(c, "excerpt", "") + " " + getattr(c, "service", "")).lower()
+            if intent_res.service_id == "tree_removal":
+                if any(w in c_text for w in ["zoning", "road open", "excavat", "sewer", "soil"]):
+                    continue
+            elif intent_res.service_id in ["soil_import", "soil_export", "soil_movement"]:
+                if any(w in c_text for w in ["zoning", "road open", "excavat", "sewer", "tree"]):
+                    continue
+            
             base_url = c.url.split("#")[0].split("?")[0]
             if base_url in seen_urls:
                 continue
@@ -956,7 +844,7 @@ class GroundedRagEngine:
         # If no citations found above threshold
         if not citations:
             # If the inquiry is genuinely an engineering inquiry, provide helpful grounded guidance
-            if intent_res.service_id in ["other_engineering", "road_opening", "sewer_connection", "zoning", "soil_import", "soil_export", "site_improvement"]:
+            if intent_res.service_id in ["other_engineering"]:
                 guidance_msg = (
                     f"### Edison Township Department of Engineering\n\n"
                     f"Regarding your inquiry concerning **{query.strip()}**:\n\n"

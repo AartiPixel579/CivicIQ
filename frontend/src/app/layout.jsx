@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'CivicIQ | Your civic intelligence buddy',
-  description: 'CivicIQ - Your civic intelligence buddy for Edison Township Engineering services.',
+  title: 'CivicIQ | Mushkil Your Edison Township Buddy',
+  description: 'CivicIQ - Mushkil Your Edison Township Buddy for Edison Township, New Jersey.',
 };
 
 export default function RootLayout({ children }) {

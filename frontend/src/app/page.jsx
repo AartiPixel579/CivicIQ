@@ -30,7 +30,7 @@ export default function Home() {
       const welcomeMsg = {
         id: 'welcome_' + Date.now(),
         sender: 'assistant',
-        text: `Hello! I am **CivicIQ**, your civic intelligence buddy.\n\nI can assist you with Edison Township Engineering services, permits, road openings, tree removals, and sewer connections.\n\nHow can I help you today?`,
+        text: `CivicIQ\n\nMushkil Your Edison Township Buddy\n\nHow can **"CivicIQ"** help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: 'general',
       };
@@ -91,6 +91,10 @@ export default function Home() {
           active_flow_id: data.active_flow_id,
           department_id: data.department_id,
           completed: data.completed,
+          pdf_download_url: data.pdf_download_url,
+          submission_guidance: data.submission_guidance,
+          form_recommendation: data.form_recommendation,
+          form_session_info: data.form_session_info,
         };
         setMessages(prev => [...prev, assistantMsg]);
       } else {
@@ -117,7 +121,45 @@ export default function Home() {
     }
   };
 
-  // 3. Reset session
+  // 3. Start Form Session directly via API or message
+  const handleStartFormSession = async (formId) => {
+    if (!sessionId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/form-session/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          form_id: formId,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const asstMsg = {
+          id: 'asst_' + Date.now(),
+          sender: 'assistant',
+          text: data.message,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          form_session_info: data.session_info,
+        };
+        setMessages(prev => [...prev, asstMsg]);
+      } else {
+        await handleSendMessage(`Yes, please help me fill out the ${formId} application.`);
+      }
+    } catch (err) {
+      console.error('Start form error:', err);
+      await handleSendMessage(`Yes, please help me fill out this application.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditField = (fieldId) => {
+    handleSendMessage(`edit ${fieldId}`);
+  };
+
+  // 4. Reset session
   const handleResetSession = async () => {
     if (!sessionId) return;
     try {
@@ -127,7 +169,7 @@ export default function Home() {
       const resetMsg = {
         id: 'reset_' + Date.now(),
         sender: 'assistant',
-        text: 'Conversation reset. How may I assist you with Edison Township Engineering services today?',
+        text: `CivicIQ\n\nMushkil Your Edison Township Buddy\n\nHow can **"CivicIQ"** help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: 'general',
       };
@@ -161,7 +203,7 @@ export default function Home() {
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               </div>
               <p className="text-xs font-medium text-amber-300/90 tracking-wide">
-                Your civic intelligence buddy
+                Mushkil Your Edison Township Buddy
               </p>
             </div>
           </div>
@@ -185,6 +227,8 @@ export default function Home() {
           onSendMessage={handleSendMessage}
           onResetSession={handleResetSession}
           onPreviewPdf={handleOpenPdfPreview}
+          onStartSession={handleStartFormSession}
+          onEditField={handleEditField}
         />
       </main>
 
@@ -193,7 +237,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5">
           <span className="flex items-center">
             <ShieldCheck className="h-4 w-4 mr-1.5 text-blue-700" />
-            CivicIQ • Your civic intelligence buddy • Edison Township Engineering
+            CivicIQ • Mushkil Your Edison Township Buddy • Edison Township Engineering
           </span>
           <span className="font-mono text-slate-400 text-[11px]">
             edisonnj.org/document_center

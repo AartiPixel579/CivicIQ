@@ -1,20 +1,36 @@
 import os
+import re
 import logging
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from .config import APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY, APP_TAGLINE
+from .config import (
+    APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY, APP_TAGLINE,
+    GENERATED_DRAFTS_DIR
+)
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
-    DepartmentConfig, FlowDefinition, RagResult
+    DepartmentConfig, FlowDefinition, RagResult,
+    FormStartSessionRequest, FormAnswerRequest, FormEditRequest,
+    FormQuestionResponse, FormRecommendation
 )
 from .department_loader import registry
 from .flow_engine import flow_engine
 from .rag_engine import rag_engine
 from .vector_store import vector_store
 from .edison_document_center import EDISON_DOCUMENT_CATALOG, get_document_inventory
+from .services import (
+    form_schema_service,
+    form_matcher,
+    form_session_service,
+    pdf_filler,
+    submission_guidance_service,
+    rag_service
+)
+from .llm_provider import llm_manager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("main")
@@ -153,6 +169,7 @@ def advance_flow_step(req: FlowStepRequest):
 def reset_flow(session_id: str = Query(...)):
     """Resets procedure and chat history state for session."""
     flow_engine.reset_session(session_id)
+    form_session_service.cancel_session(session_id)
     CHAT_HISTORIES.pop(session_id, None)
     return {"status": "success", "message": f"Procedure and conversation history reset for session {session_id}."}
 
@@ -162,15 +179,19 @@ def chat_endpoint(req: ChatRequest):
     Main conversational router for CivicIQ:
     - Maintains multi-turn conversation memory for context across prompts.
     - Cites verified Edison Engineering documentation.
+    - Guides conversational form filling one question at a time.
+    - Generates downloadable completed PDF drafts with signature guidance.
     - Delivers official PDF cards when explicitly requested in context.
     - Strictly returns out-of-context response for non-engineering queries.
     """
     session = flow_engine.get_session(req.session_id)
     history = CHAT_HISTORIES.setdefault(req.session_id, [])
+    msg_clean = req.message.strip().lower()
 
     # Reset intent
-    if req.message.strip().lower() in ["/reset", "reset", "start over", "cancel", "restart"]:
+    if msg_clean in ["/reset", "reset", "start over", "cancel", "restart"]:
         flow_engine.reset_session(req.session_id)
+        form_session_service.cancel_session(req.session_id)
         CHAT_HISTORIES.pop(req.session_id, None)
         return ChatResponse(
             session_id=req.session_id,
@@ -179,6 +200,75 @@ def chat_endpoint(req: ChatRequest):
             department_id="engineering",
             completed=False
         )
+
+    # Case 0: Active Form Filling Session in progress
+    active_form_sess = form_session_service.get_session(req.session_id)
+    if active_form_sess and active_form_sess.status in ["in_progress", "review"]:
+        ok, status_msg, q_resp = form_session_service.answer_question(req.session_id, req.message)
+        if q_resp:
+            if q_resp.is_complete:
+                ok_pdf, pdf_msg, pdf_path, pdf_url = pdf_filler.generate_draft_pdf(
+                    session_id=req.session_id,
+                    form_id=q_resp.form_id,
+                    answers=q_resp.collected_answers
+                )
+                guidance = submission_guidance_service.get_guidance(q_resp.form_id, q_resp.collected_answers)
+                final_msg = f"{q_resp.message}\n\n{guidance['markdown_guidance']}"
+                history.append({"role": "user", "content": req.message})
+                history.append({"role": "assistant", "content": final_msg})
+                CHAT_HISTORIES[req.session_id] = history[-10:]
+                return ChatResponse(
+                    session_id=req.session_id,
+                    message=final_msg,
+                    mode="form_fill",
+                    completed=True,
+                    pdf_download_url=pdf_url,
+                    submission_guidance=guidance,
+                    form_session_info=q_resp.model_dump()
+                )
+            else:
+                history.append({"role": "user", "content": req.message})
+                history.append({"role": "assistant", "content": q_resp.message})
+                CHAT_HISTORIES[req.session_id] = history[-10:]
+                return ChatResponse(
+                    session_id=req.session_id,
+                    message=q_resp.message,
+                    mode="form_fill",
+                    completed=False,
+                    form_session_info=q_resp.model_dump()
+                )
+
+    # Case 0.5: Citizen accepts offer to fill out an application form
+    last_bot_msg = history[-1].get("content", "").lower() if history else ""
+    if any(agree in msg_clean for agree in ["yes, please", "yes please", "yes", "fill it out", "help me fill", "start application", "prepare application", "fill out the application"]):
+        # Find which form was offered or matches context
+        target_form_id = None
+        if "tree removal" in last_bot_msg or "tree" in msg_clean:
+            target_form_id = "tree_removal"
+        elif "road opening" in last_bot_msg or "road" in msg_clean or "excavation" in msg_clean:
+            target_form_id = "road_opening"
+        elif "sewer" in last_bot_msg or "sewer" in msg_clean:
+            target_form_id = "sewer_connection"
+        elif "zoning" in last_bot_msg or "permit" in last_bot_msg:
+            target_form_id = "zoning_permit"
+        else:
+            rec = form_matcher.match_form(req.message, history=history)
+            if rec and rec.is_application_form:
+                target_form_id = rec.form.form_id
+
+        if target_form_id:
+            ok, start_msg, q_resp = form_session_service.start_session(req.session_id, target_form_id)
+            if ok and q_resp:
+                history.append({"role": "user", "content": req.message})
+                history.append({"role": "assistant", "content": q_resp.message})
+                CHAT_HISTORIES[req.session_id] = history[-10:]
+                return ChatResponse(
+                    session_id=req.session_id,
+                    message=q_resp.message,
+                    mode="form_fill",
+                    completed=False,
+                    form_session_info=q_resp.model_dump()
+                )
 
     # Case 1: Citizen clicked an option in an active flow
     if req.selected_option_id and session and not session.completed:
@@ -232,6 +322,15 @@ def chat_endpoint(req: ChatRequest):
 
     final_message = rag_res.answer
 
+    # Check for Form Recommendation and Offer Conversational Fill
+    rec = form_matcher.match_form(req.message, history=history)
+    form_rec_dict = None
+    if rec and rec.is_application_form and rag_res.grounded:
+        form_rec_dict = rec.model_dump()
+        # If user expresses intent to apply or request permit, append the conversational filling offer
+        if any(w in msg_clean for w in ["apply", "permit", "need a form", "fill out", "want to", "how do i get"]):
+            final_message += f"\n\nWould you like me to help you fill out this application?"
+
     # Record history
     history.append({"role": "user", "content": req.message})
     history.append({"role": "assistant", "content": final_message})
@@ -243,6 +342,7 @@ def chat_endpoint(req: ChatRequest):
         mode="rag",
         citations=rag_res.citations,
         form_packet=form_packet or rag_res.form_packet,
+        form_recommendation=form_rec_dict,
         department_id="engineering",
         completed=False
     )
@@ -310,3 +410,92 @@ def get_document_center(category: Optional[str] = None, search: Optional[str] = 
         "categories": ["All"] + categories,
         "documents": docs
     }
+
+# --- Conversational Form Identification & Filling Endpoints ---
+
+@app.get("/api/forms/recommend")
+def recommend_form(query: str = Query(...)):
+    """Identifies and recommends official forms matching resident query."""
+    rec = form_matcher.match_form(query)
+    if not rec:
+        return {"matched": False, "message": "No verified application form matched your query."}
+    return {"matched": True, "recommendation": rec.model_dump()}
+
+@app.post("/api/form-session/start", response_model=FormQuestionResponse)
+def start_form_session(req: FormStartSessionRequest):
+    """Starts a step-by-step conversational form filling session."""
+    ok, msg, resp = form_session_service.start_session(req.session_id, req.form_id)
+    if not ok or not resp:
+        raise HTTPException(status_code=400, detail=msg)
+    return resp
+
+@app.post("/api/form-session/answer", response_model=FormQuestionResponse)
+def answer_form_session(req: FormAnswerRequest):
+    """Submits answer for the current question in an active form session."""
+    ok, msg, resp = form_session_service.answer_question(req.session_id, req.answer)
+    if not ok or not resp:
+        raise HTTPException(status_code=400, detail=msg)
+    return resp
+
+@app.post("/api/form-session/edit", response_model=FormQuestionResponse)
+def edit_form_session(req: FormEditRequest):
+    """Edits a previously submitted answer in an active form session."""
+    ok, msg, resp = form_session_service.edit_answer(req.session_id, req.field_name, req.new_answer)
+    if not ok or not resp:
+        raise HTTPException(status_code=400, detail=msg)
+    return resp
+
+@app.get("/api/form-session/review")
+def review_form_session(session_id: str = Query(...)):
+    """Returns review summary of all collected information."""
+    state = form_session_service.get_session(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="No active application session found.")
+    form = form_schema_service.get_form_by_id(state.form_id)
+    if not form:
+        raise HTTPException(status_code=404, detail="Form definition not found.")
+    return form_session_service._build_review_response(state, form)
+
+@app.post("/api/form-session/generate-pdf")
+def generate_form_pdf(session_id: str = Query(...)):
+    """Generates a completed municipal draft PDF populated with resident answers."""
+    state = form_session_service.get_session(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="No active application session found.")
+    ok, msg, path, url = pdf_filler.generate_draft_pdf(session_id, state.form_id, state.answers)
+    if not ok:
+        raise HTTPException(status_code=500, detail=msg)
+    guidance = submission_guidance_service.get_guidance(state.form_id, state.answers)
+    return {
+        "status": "success",
+        "pdf_download_url": url,
+        "filename": Path(path).name,
+        "submission_guidance": guidance
+    }
+
+@app.get("/api/form-session/download/{session_id}/{filename}")
+def download_draft_pdf(session_id: str, filename: str):
+    """
+    Securely streams the generated draft PDF.
+    Prevents path traversal and validates file existence.
+    """
+    safe_filename = Path(filename).name
+    file_path = GENERATED_DRAFTS_DIR / session_id / safe_filename
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Requested draft PDF document not found.")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/pdf",
+        filename=safe_filename,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_filename}"',
+            "Cache-Control": "private, max-age=600"
+        }
+    )
+
+@app.get("/api/llm/status")
+def get_llm_status():
+    """Returns non-sensitive status and availability for all configured free-first LLM providers."""
+    return llm_manager.get_status()
+

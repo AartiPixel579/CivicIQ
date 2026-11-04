@@ -1,6 +1,6 @@
 """
 Grounded Municipal RAG Engine & Multi-Turn Intent Router for CivicIQ
-("Your civic intelligence buddy" - Edison Township Department of Engineering)
+("Mushkil Your Edison Township Buddy" - Edison Township Department of Engineering)
 """
 
 import re

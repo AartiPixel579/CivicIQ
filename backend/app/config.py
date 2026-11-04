@@ -11,8 +11,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Application & Municipality Metadata
 APP_NAME = "CivicIQ"
-APP_TAGLINE = "Your civic intelligence buddy"
-APP_VERSION = "2.1.0"
+APP_TAGLINE = "Mushkil Your Edison Township Buddy"
+APP_VERSION = "2.2.0"
 MUNICIPALITY_NAME = "Township of Edison, New Jersey"
 OFFICIAL_PORTAL_URL = "https://www.edisonnj.org/document_center/index.php"
 OFFICIAL_DOCUMENT_CENTER_URL = "https://www.edisonnj.org/document_center/index.php"
@@ -38,16 +38,37 @@ TOP_K_RESULTS = 4
 CHUNK_SIZE_WORDS = 130
 CHUNK_OVERLAP_WORDS = 30
 
-# LLM Configuration (Google Gemini preferred, Groq / OpenAI as alternative)
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto") # "gemini", "groq", "openai", "none", or "auto"
+# Generated PDF Drafts Storage Directory
+GENERATED_DRAFTS_DIR = DATA_DIR / "generated_drafts"
+GENERATED_DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# LLM Configuration (Provider Priority: Gemini -> Groq -> OpenRouter -> Transparent Fallback)
+LLM_PRIMARY_PROVIDER = os.getenv("LLM_PRIMARY_PROVIDER", "gemini").lower().strip()
+LLM_FALLBACK_PROVIDERS = [
+    p.strip().lower() for p in os.getenv("LLM_FALLBACK_PROVIDERS", "groq,openrouter").split(",") if p.strip()
+]
+
+# 1. Primary: Google Gemini API (Free tier supported models)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
-# Groq / OpenAI Alternative
+# 2. First Backup: Groq API (Free developer tier supported models)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", os.getenv("OPENAI_API_KEY", ""))
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+# 3. Optional Second Backup: OpenRouter API (Strictly Free Models Only)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.2-3b-instruct:free")
+OPENROUTER_ALLOW_FREE_MODELS_ONLY = os.getenv("OPENROUTER_ALLOW_FREE_MODELS_ONLY", "true").lower() in ("true", "1", "yes")
+
+# Timeout & Retry settings
+LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
+LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
+
+# Backward compatibility alias
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", LLM_PRIMARY_PROVIDER)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 

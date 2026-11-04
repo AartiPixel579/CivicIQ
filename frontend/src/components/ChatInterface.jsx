@@ -8,6 +8,65 @@ import {
 import { FlowStepOptions } from './FlowStepOptions';
 import { OfficialPdfCard } from './OfficialPdfCard';
 import { RagCitationCard } from './RagCitationCard';
+import { FormSessionCard } from './FormSessionCard';
+
+export const renderFormattedText = (text) => {
+  if (!text) return null;
+  const paragraphs = text.split('\n');
+
+  return paragraphs.map((paragraph, pIdx) => {
+    const parts = [];
+    const regex = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+    let lastIndex = 0;
+    let match;
+    let keyIdx = 0;
+
+    while ((match = regex.exec(paragraph)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(paragraph.substring(lastIndex, match.index));
+      }
+      const token = match[0];
+      if (token.startsWith('**') && token.endsWith('**')) {
+        parts.push(
+          <strong key={`b-${pIdx}-${keyIdx++}`} className="font-bold text-inherit">
+            {token.slice(2, -2)}
+          </strong>
+        );
+      } else if (token.startsWith('`') && token.endsWith('`')) {
+        parts.push(
+          <code key={`c-${pIdx}-${keyIdx++}`} className="bg-slate-100 px-1 py-0.5 rounded text-[11px] font-mono text-slate-800">
+            {token.slice(1, -1)}
+          </code>
+        );
+      } else if (token.startsWith('[') && token.includes('](')) {
+        const linkText = token.substring(1, token.indexOf(']('));
+        const linkUrl = token.substring(token.indexOf('](') + 2, token.length - 1);
+        parts.push(
+          <a
+            key={`a-${pIdx}-${keyIdx++}`}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 underline hover:text-blue-800 font-medium"
+          >
+            {linkText}
+          </a>
+        );
+      }
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < paragraph.length) {
+      parts.push(paragraph.substring(lastIndex));
+    }
+
+    return (
+      <span key={`p-${pIdx}`} className="block min-h-[1em]">
+        {parts.length > 0 ? parts : paragraph}
+      </span>
+    );
+  });
+};
 
 export const ChatInterface = ({
   messages = [],
@@ -16,6 +75,8 @@ export const ChatInterface = ({
   onSendMessage,
   onResetSession,
   onPreviewPdf,
+  onStartSession,
+  onEditField,
 }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef(null);
@@ -55,7 +116,7 @@ export const ChatInterface = ({
                 CivicIQ
               </h2>
               <span className="text-[10px] font-medium bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full ring-1 ring-amber-400/40">
-                Your civic intelligence buddy
+                Mushkil Your Edison Township Buddy
               </span>
             </div>
             <p className="text-[11px] text-blue-200/80 flex items-center">
@@ -106,7 +167,35 @@ export const ChatInterface = ({
                       : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
                   }`}
                 >
-                  <p className="whitespace-pre-line">{msg.text}</p>
+                  <div className="space-y-1">
+                    {renderFormattedText(msg.text)}
+                  </div>
+
+                  {/* Form Recommendation */}
+                  {msg.form_recommendation && (
+                    <FormSessionCard
+                      recommendation={msg.form_recommendation}
+                      onStartSession={onStartSession}
+                    />
+                  )}
+
+                  {/* Active Form Session Progress */}
+                  {msg.form_session_info && !msg.pdf_download_url && (
+                    <FormSessionCard
+                      sessionInfo={msg.form_session_info}
+                      onEditField={onEditField}
+                    />
+                  )}
+
+                  {/* Generated PDF Download & Signature Guidance Card */}
+                  {(msg.pdf_download_url || (msg.form_session_info && msg.form_session_info.is_complete)) && (
+                    <FormSessionCard
+                      pdfUrl={msg.pdf_download_url}
+                      submissionGuidance={msg.submission_guidance}
+                      sessionInfo={msg.form_session_info}
+                      onPreviewPdf={onPreviewPdf}
+                    />
+                  )}
 
                   {/* Flowchart Decision Step Options */}
                   {msg.options && msg.options.length > 0 && !msg.completed && (
@@ -119,7 +208,7 @@ export const ChatInterface = ({
                   )}
 
                   {/* Official PDF Document Delivery Card */}
-                  {msg.form_packet && (
+                  {msg.form_packet && !msg.pdf_download_url && (
                     <OfficialPdfCard
                       formPacket={msg.form_packet}
                       onPreview={onPreviewPdf}
@@ -153,7 +242,7 @@ export const ChatInterface = ({
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="font-medium text-slate-600">Retrieving official municipal documentation & evaluating rules...</span>
+              <span className="font-medium text-slate-600">Mushkil is consulting official Edison Township engineering records...</span>
             </div>
           </div>
         )}

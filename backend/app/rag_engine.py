@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from .vector_store import vector_store
 from .department_loader import registry
 from .llm_client import llm_client
-from .models import RagCitation, RagResult, FormIssuanceDetails, SubmissionRouting, FeeInfo
+from .models import RagCitation, RagResult, FormIssuanceDetails, SubmissionRouting, FeeInfo, FlowOption
 from .config import (
     MUNICIPALITY_NAME, MUNICIPAL_ADDRESS,
     ENGINEERING_PHONE, ENGINEERING_EMAIL,
@@ -60,6 +60,10 @@ class GroundedRagEngine:
 
         # Never hijack form requests into a procedural workflow
         if intent.intent_type in ["form_request", "fee_inquiry", "document_inquiry", "submission_inquiry"]:
+            return None
+
+        # For soil services, conversational handling in handle_soil_flow handles import/export branching dynamically
+        if intent.service_id in ["soil_import", "soil_export", "soil_movement"]:
             return None
 
         text = user_text.lower().strip()
@@ -389,17 +393,21 @@ class GroundedRagEngine:
     def _build_soil_import_required_msg(self) -> str:
         return (
             "Under Township of Edison municipal regulations (Chapter 31), importing 10 cubic yards or more of soil requires an approved **Soil Importation Permit** prior to delivery.\n\n"
-            "1. **Submit application:** Complete and submit the official Soil Importation Permit Application.\n"
-            "2. **Provide documentation:** Attach a certified laboratory clean fill analysis and a property survey with grading plan showing proposed fill placement.\n"
-            "3. **Await engineering approval:** Obtain permit approval from the Division of Engineering before transporting soil onto the property."
+            "• 1. **Submit application:** Complete and submit the official Soil Importation Permit Application.\n"
+            "• 2. **Provide documentation:** Attach a certified laboratory clean fill analysis and a property survey with grading plan showing proposed fill placement.\n"
+            "• 3. **Await engineering approval:** Obtain permit approval from the Division of Engineering before transporting soil onto your property.\n\n"
+            "Source: [Township of Edison Soil Importation Permit Application](/api/forms/engineering/Forms_Soil_Importation_Appl.pdf)\n\n"
+            "Would you like help with the application?"
         )
 
     def _build_soil_export_required_msg(self) -> str:
         return (
             "Under Township of Edison municipal regulations (Chapter 31), exporting 10 cubic yards or more of soil requires an approved **Soil Exportation Permit** prior to hauling.\n\n"
-            "1. **Submit application:** Complete and submit the official Soil Exportation Permit Application.\n"
-            "2. **Provide documentation:** Attach a topographical survey with cut/fill calculations and your designated truck haul route.\n"
-            "3. **Await engineering approval:** Obtain permit approval from the Division of Engineering before moving soil off-site."
+            "• 1. **Submit application:** Complete and submit the official Soil Exportation Permit Application.\n"
+            "• 2. **Provide documentation:** Attach a topographical survey with cut/fill calculations and your designated truck haul route.\n"
+            "• 3. **Await engineering approval:** Obtain permit approval from the Division of Engineering before moving soil off-site.\n\n"
+            "Source: [Township of Edison Soil Exportation Permit Application](/api/forms/engineering/Forms_Soil_Exportation_App.pdf)\n\n"
+            "Would you like help with the application?"
         )
 
     def _build_soil_not_required_msg(self) -> str:
@@ -443,6 +451,15 @@ class GroundedRagEngine:
             if msg.get("role") in ["assistant", "model", "system"]:
                 last_bot_msg = msg.get("content", "").lower()
                 break
+
+        # Check if resident is responding to the ambiguous removal question with 'soil' (removing soil = export)
+        if "what would you like to remove" in last_bot_msg and any(w in q for w in ["soil", "dirt", "export", "opt_remove_soil"]):
+            msg = (
+                "I can help you understand the Township of Edison's soil export requirements under municipal regulations (Chapter 31).\n\n"
+                "Approximately how much soil are you planning to export or remove? **Is it 10 cubic yards or more?**\n\n"
+                "*(Note: Typical excavation for home additions, pools, or foundation work often exceeds 10 cubic yards.)*"
+            )
+            return (msg, None)
 
         in_soil_flow = (
             "soil regulations" in last_bot_msg or
@@ -637,6 +654,43 @@ class GroundedRagEngine:
 
         return None
 
+    def _determine_step_options(self, msg: str, packet: Optional[FormIssuanceDetails]) -> Optional[List[FlowOption]]:
+        """Determines interactive action or decision buttons based on message context."""
+        if packet is not None or "Would you like help with the application?" in msg:
+            return [
+                FlowOption(id="opt_apply_yes", label="Yes, help me apply", next_step="apply_yes"),
+                FlowOption(id="opt_apply_no", label="No, thanks", next_step="apply_no")
+            ]
+
+        m = msg.lower()
+        if "approved permit for the tree removal" in m:
+            return [
+                FlowOption(id="opt_tree_has_permit", label="Yes, I have an approved permit", next_step="has_permit"),
+                FlowOption(id="opt_tree_no_permit", label="No, I do not have a permit", next_step="no_permit"),
+                FlowOption(id="opt_tree_urgent", label="It is an emergency / hazardous", next_step="urgent")
+            ]
+        if "urgent situation or emergency" in m:
+            return [
+                FlowOption(id="opt_tree_is_emergency", label="Yes, it is an emergency (dead, dying, or hazardous)", next_step="emergency"),
+                FlowOption(id="opt_tree_planned", label="Planned, non-emergency removal", next_step="planned")
+            ]
+        if "10 cubic yards or more" in m:
+            return [
+                FlowOption(id="opt_soil_10_plus", label="10 cubic yards or more", next_step="soil_over_10"),
+                FlowOption(id="opt_soil_under_10", label="Less than 10 cubic yards", next_step="soil_under_10")
+            ]
+        if "bring soil onto your property" in m:
+            return [
+                FlowOption(id="opt_soil_import", label="Bring soil (Import)", next_step="soil_import"),
+                FlowOption(id="opt_soil_export", label="Remove soil (Export)", next_step="soil_export")
+            ]
+        if "part of a subdivision" in m:
+            return [
+                FlowOption(id="opt_tree_subdiv_yes", label="Yes, part of subdivision or demolition", next_step="subdiv_yes"),
+                FlowOption(id="opt_tree_subdiv_no", label="No, standard residential project", next_step="subdiv_no")
+            ]
+        return None
+
     def answer_query(
         self,
         query: str,
@@ -685,7 +739,8 @@ class GroundedRagEngine:
                 citations=[],
                 grounded=True,
                 query=query,
-                form_packet=None
+                form_packet=None,
+                options=intent_res.options
             )
 
         # 2.5 Intent-Based Detail Retrieval (Progressive Disclosure)
@@ -715,7 +770,8 @@ class GroundedRagEngine:
                     citations=citations,
                     grounded=True,
                     query=query,
-                    form_packet=packet
+                    form_packet=packet,
+                    options=self._determine_step_options(detail_msg, packet)
                 )
 
         # 3. Check for multi-turn tree removal procedural guidance (Verified Service)
@@ -744,7 +800,8 @@ class GroundedRagEngine:
                     citations=citations,
                     grounded=True,
                     query=query,
-                    form_packet=packet
+                    form_packet=packet,
+                    options=self._determine_step_options(msg, packet)
                 )
 
         # 4. Check for multi-turn soil import/export procedural guidance (Verified Service)
@@ -773,7 +830,8 @@ class GroundedRagEngine:
                     citations=citations,
                     grounded=True,
                     query=query,
-                    form_packet=packet
+                    form_packet=packet,
+                    options=self._determine_step_options(msg, packet)
                 )
 
         # 5. Emergency inquiry detail fallback
@@ -802,7 +860,8 @@ class GroundedRagEngine:
                     citations=citations,
                     grounded=True,
                     query=query,
-                    form_packet=packet
+                    form_packet=packet,
+                    options=self._determine_step_options(detail_msg, packet)
                 )
 
         # 6. Search vector store

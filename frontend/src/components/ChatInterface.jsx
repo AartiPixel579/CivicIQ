@@ -94,9 +94,9 @@ export const ChatInterface = ({
     onSendMessage(text);
   };
 
-  const handleSelectOption = (optionId) => {
+  const handleSelectOption = (optionId, optionLabel) => {
     if (isLoading) return;
-    onSendMessage('', optionId);
+    onSendMessage(optionLabel || '', optionId);
   };
 
   return (

@@ -56,7 +56,7 @@ export default function Home() {
       const userMsg = {
         id: 'user_opt_' + Date.now(),
         sender: 'user',
-        text: opt ? `Selected: ${opt.label}` : `Choice: ${optionId}`,
+        text: opt ? opt.label : optionId,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages(prev => [...prev, userMsg]);

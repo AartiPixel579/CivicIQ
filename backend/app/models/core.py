@@ -131,6 +131,7 @@ class RagResult(BaseModel):
     grounded: bool
     query: str
     form_packet: Optional[FormIssuanceDetails] = None
+    options: Optional[List[FlowOption]] = None
 
 # --- Chat & Session Models ---
 class ChatMessage(BaseModel):

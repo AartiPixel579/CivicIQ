@@ -99,25 +99,39 @@ class LLMClient:
         # 2. Transparent grounded retrieval synthesis (Offline / Local Deterministic Fallback)
         logger.info("Using transparent grounded retrieval synthesis fallback.")
         primary = citations[0]
-        cleaned_primary = sanitize_contact_info(primary.excerpt)
-        paragraphs = [
-            f"According to official **{MUNICIPALITY_NAME}** records for the {department_name} ({primary.title}):",
-            "",
-            f"> \"{cleaned_primary}\"",
-            ""
-        ]
+        cleaned_primary = sanitize_contact_info(primary.excerpt).strip()
+
+        # 1. Direct answer in the first sentence
+        parts = re.split(r'(?<=[.!?])\s+', cleaned_primary)
+        first_sentence = parts[0].strip() if parts else cleaned_primary
+        if not first_sentence.endswith((".", "!", "?")):
+            first_sentence += "."
+
+        paragraphs = [first_sentence]
+
+        # 2. Short scannable bullet points for subsequent provisions or other citations
+        bullets = []
+        if len(parts) > 1:
+            for p in parts[1:3]:
+                clean_p = p.strip()
+                if len(clean_p) > 10:
+                    bullets.append(f"• {clean_p}")
 
         if len(citations) > 1:
-            paragraphs.append("**Relevant Official Provisions:**")
             for c in citations[1:3]:
-                cleaned_c = sanitize_contact_info(c.excerpt)
-                paragraphs.append(f"• **[{c.title}]({c.url})**: {cleaned_c}")
-            paragraphs.append("")
+                c_clean = sanitize_contact_info(c.excerpt).strip()
+                c_parts = re.split(r'(?<=[.!?])\s+', c_clean)
+                c_first = c_parts[0].strip() if c_parts else c_clean
+                if c_first and len(c_first) > 10:
+                    bullets.append(f"• **{c.title}**: {c_first}")
 
-        paragraphs.append(
-            f"**Official Source:** Verified from [{primary.title}]({primary.url}) "
-            f"(Match relevance: {int(primary.relevance_score * 100)}%)."
-        )
+        if bullets:
+            paragraphs.append("")
+            paragraphs.extend(bullets[:4])
+
+        # 3. Compact, clickable source reference linked to official document
+        paragraphs.append("")
+        paragraphs.append(f"Source: [{primary.title}]({primary.url})")
 
         return "\n".join(paragraphs)
 

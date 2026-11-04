@@ -283,12 +283,95 @@ def chat_endpoint(req: ChatRequest):
                     form_session_info=q_resp.model_dump()
                 )
 
+    # Resolve empty message from selected_option_id if needed
+    OPTION_LABEL_MAP = {
+        "opt_remove_tree": "Tree",
+        "opt_remove_soil": "Soil",
+        "opt_remove_other": "Something else",
+        "opt_soil_import": "Bring soil onto property (Soil Import)",
+        "opt_soil_export": "Remove soil from property (Soil Export)",
+        "opt_soil_10_plus": "10 cubic yards or more",
+        "opt_soil_under_10": "Less than 10 cubic yards",
+        "opt_tree_has_permit": "Yes, I have an approved permit",
+        "opt_tree_no_permit": "No, I do not have a permit",
+        "opt_tree_urgent": "It is an emergency",
+        "opt_tree_is_emergency": "Yes, it is an emergency",
+        "opt_tree_planned": "Planned, non-emergency removal",
+        "opt_excavate_soil": "Remove soil from property (Soil Export)",
+        "opt_excavate_street": "Street / pavement excavation",
+        "opt_tree_remove": "Remove a tree",
+        "opt_tree_fee": "Tree permit fees",
+        "opt_tree_docs": "Required documents",
+        "opt_permit_tree": "Tree Removal Permit",
+        "opt_permit_soil": "Soil Import / Export Permit",
+        "opt_permit_other": "Other municipal service",
+        "opt_app_tree": "Tree Removal Application",
+        "opt_app_soil_imp": "Soil Import Application",
+        "opt_app_soil_exp": "Soil Export Application",
+        "opt_apply_yes": "Yes, help me apply",
+        "opt_apply_no": "No, thanks"
+    }
+    if not req.message and req.selected_option_id and req.selected_option_id in OPTION_LABEL_MAP:
+        req.message = OPTION_LABEL_MAP[req.selected_option_id]
+
+    # Case 0.5: Next-Step Form Assistance Action Buttons
+    is_apply_yes = (
+        req.selected_option_id == "opt_apply_yes" or
+        any(p in req.message.lower() for p in ["yes, help me apply", "help me apply", "help me fill out", "yes, please help me", "help me with the application"])
+    )
+    is_apply_no = (
+        req.selected_option_id == "opt_apply_no" or
+        any(p in req.message.lower() for p in ["no, thanks", "no thanks", "no thank you", "no, thank you", "not now"])
+    )
+
+    if is_apply_yes:
+        form_id = "tree_removal"
+        for msg in reversed(history):
+            content = msg.get("content", "").lower()
+            if "soil import" in content:
+                form_id = "soil_import"
+                break
+            elif "soil export" in content:
+                form_id = "soil_export"
+                break
+            elif "tree" in content:
+                form_id = "tree_removal"
+                break
+
+        success, msg, q_resp = form_session_service.start_session(req.session_id, form_id)
+        if success and q_resp:
+            msg_text = q_resp.message
+            user_text = req.message if req.message else "Yes, help me apply"
+            history.append({"role": "user", "content": user_text})
+            history.append({"role": "assistant", "content": msg_text})
+            CHAT_HISTORIES[req.session_id] = history[-10:]
+            return ChatResponse(
+                session_id=req.session_id,
+                message=msg_text,
+                mode="form_fill",
+                completed=False,
+                form_session_info=q_resp.model_dump()
+            )
+
+    if is_apply_no:
+        closure_msg = "No problem! Let me know if you need any other assistance with Edison Township Engineering services."
+        user_text = req.message if req.message else "No, thanks"
+        history.append({"role": "user", "content": user_text})
+        history.append({"role": "assistant", "content": closure_msg})
+        CHAT_HISTORIES[req.session_id] = history[-10:]
+        return ChatResponse(
+            session_id=req.session_id,
+            message=closure_msg,
+            mode="rag",
+            completed=False
+        )
+
     # Case 1: Active procedural flow (advanced by button option selection OR typed natural language!)
     if session and not session.completed:
         # Check if the user is asking an informational side question (e.g. "How much?", "Is there any fee?", "What about documents?", "Where do I submit it?")
         from .services.service_intent_service import service_intent_service
         intent_res = service_intent_service.detect_intent(req.message, history=history)
-        if intent_res.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process"] and not req.selected_option_id:
+        if intent_res.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process", "permit_required"] and not req.selected_option_id:
             svc_id = intent_res.service_id
             if svc_id == "other_engineering" and session.flow_id:
                 if "tree" in session.flow_id:
@@ -477,6 +560,7 @@ def chat_endpoint(req: ChatRequest):
         citations=safe_citations,
         form_packet=form_packet or rag_res.form_packet,
         form_recommendation=form_rec_dict,
+        options=rag_res.options,
         department_id="engineering",
         completed=False
     )

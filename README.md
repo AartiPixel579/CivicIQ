@@ -31,8 +31,8 @@ Navigating municipal permits and township codes can be complicated for residents
    - Automatically detects short or ambiguous messages (e.g., *"removal"*) and asks a single clarifying question with interactive options (*"What would you like to remove — a tree or soil?"*).
 
 4. **Multi-Provider LLM Resiliency**
-   - Configured with a sequential fallback architecture: **Google Gemini** $\to$ **Groq** $\to$ **OpenRouter** (free models) $\to$ **Local Grounded Synthesis**.
-   - Strict guardrails enforce free-tier usage on OpenRouter (`:free` model suffix required) to eliminate accidental billing.
+   - Configured with a multi-tier fallback architecture: **Google Gemini** (Primary Provider) $\to$ **Groq** (Fallback Provider) $\to$ **Local Grounded Retrieval Synthesis** (Offline Fallback).
+   - If external APIs are unavailable or unconfigured, the system automatically synthesizes verified responses locally from indexed municipal excerpts without crashing.
 
 5. **Document Center & Form Inventory**
    - Catalogs official Township of Edison Engineering documents.
@@ -80,7 +80,7 @@ The following services exist in the municipal document catalog, but their intera
 - **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons
 - **Vector Storage**: SQLite Vector Store (built-in zero-setup fallback) and PostgreSQL with `pgvector`
 - **PDF & Document Processing**: `pypdf`, ReportLab, BeautifulSoup4
-- **LLM Integrations**: Google Gemini API, Groq API, OpenRouter API (OpenAI-compatible client)
+- **LLM Integrations**: Google Gemini API (Primary Provider), Groq API (Fallback Provider)
 
 ---
 
@@ -99,7 +99,7 @@ CivicIQ/
 │   │   ├── pgvector_store.py         # PostgreSQL pgvector database adapter
 │   │   ├── edison_document_center.py # Catalog & metadata for official documents
 │   │   ├── llm_client.py             # LLM orchestration and fallback synthesis
-│   │   ├── llm_provider/             # Providers for Gemini, Groq, and OpenRouter
+│   │   ├── llm_provider/             # Providers for Gemini and Groq
 │   │   └── services/                 # Intent detection, form matching, and PDF utilities
 │   ├── data/                         # Local SQLite vector database & runtime drafts
 │   ├── scripts/                      # Document discovery and ingestion pipeline
@@ -130,7 +130,7 @@ CivicIQ/
 
 - **Python**: 3.10 or 3.11
 - **Node.js**: 18.x or 20.x, with `npm`
-- **Optional API Keys**: At least one free API key from [Google AI Studio](https://aistudio.google.com/), [Groq Console](https://console.groq.com/), or [OpenRouter](https://openrouter.ai/). *(The app functions using local grounded retrieval synthesis if no API keys are provided).*
+- **Optional API Keys**: A free API key from [Google AI Studio](https://aistudio.google.com/) (recommended primary) and/or [Groq Console](https://console.groq.com/) (fast fallback). *(The app operates using local grounded retrieval synthesis if no external API keys are configured).*
 - **Optional Database**: A PostgreSQL database with the `pgvector` extension. If omitted, CivicIQ runs out-of-the-box using local SQLite.
 
 ---
@@ -144,7 +144,7 @@ cd CivicIQ
 ```
 
 ### 2. Environment Configuration
-Copy `.env.example` to create your local `.env`:
+Copy `.env.example` to create your local `.env` file:
 ```bash
 # On Linux / macOS
 cp .env.example .env
@@ -153,7 +153,7 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-Open `.env` and configure your API keys and settings:
+Open `.env` in your local text editor and fill in your private API keys:
 ```env
 # Municipality Metadata
 MUNICIPALITY_NAME=Township of Edison, New Jersey
@@ -163,11 +163,15 @@ MUNICIPALITY_NAME=Township of Edison, New Jersey
 DATABASE_URL=
 VECTOR_STORE_PROVIDER=pgvector
 
-# LLM Providers (Add any keys you have; free tiers supported)
+# Primary AI Provider: Google Gemini (Get free key at https://aistudio.google.com/)
 LLM_PRIMARY_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+
+# Fallback AI Provider: Groq (Get free key at https://console.groq.com/)
+LLM_FALLBACK_PROVIDERS=groq
 GROQ_API_KEY=your_groq_api_key
-OPENROUTER_API_KEY=your_openrouter_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
 
 # Security & CORS
 ADMIN_API_KEY=replace_with_a_strong_random_secret
@@ -176,7 +180,10 @@ ALLOWED_ORIGINS=http://localhost:3000
 ```
 
 > [!IMPORTANT]
-> The `.env` file is excluded from git tracking via `.gitignore`. Never commit real API keys, passwords, or tokens to version control.
+> **API Key Privacy & Security**:
+> - Real API keys, database passwords, and secrets belong **strictly in your private local `.env` file**.
+> - The `.env` file is excluded from git tracking by `.gitignore` so your private credentials are never pushed to GitHub.
+> - Never commit or expose actual secrets, tokens, or passwords to version control.
 
 ---
 
@@ -232,7 +239,7 @@ python -m unittest discover -s backend/tests -p "test_*.py"
   - Context retention across multi-turn exchanges.
   - Unconfigured service isolation for Street Opening, Zoning, Site Improvement, and Sewer.
   - Out-of-context guardrails returning official municipal redirection.
-  - Multi-LLM provider failover (Gemini $\to$ Groq $\to$ OpenRouter $\to$ Grounded Synthesis).
+  - Multi-LLM provider failover (Gemini $\to$ Groq $\to$ Grounded Retrieval Synthesis).
   - Vector store indexing and query operations across pgvector and SQLite.
 
 ---

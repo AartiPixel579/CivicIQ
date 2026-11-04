@@ -1,184 +1,256 @@
-# CivicIQ — Your Edison Township Buddy
+# CivicIQ — Municipal Application Assistant (Edison Township)
 
-**CivicIQ** is an AI-powered municipal application assistant for residents of the **Township of Edison, New Jersey** (Department of Engineering).
-
-It helps residents navigate municipal procedures, permits, and engineering regulations using official data from the **Edison Township Document Center** ([edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php)).
+**CivicIQ** is an AI-powered municipal application assistant developed for residents of the **Township of Edison, New Jersey**. It assists residents with municipal Engineering regulations, procedural questions, and official permit applications using verified data sourced from the [Edison Township Document Center](https://www.edisonnj.org/document_center/index.php).
 
 ---
 
-## 🏛️ Official Identity & Branding
+## 🏛️ Project Overview
 
-- **Application Name**: `CivicIQ`
-- **Official Tagline**: `Your Edison Township Buddy`
-- **Welcome Prompt**: `How can **CivicIQ** help you today?` (visually bolded)
-- **Official Portal**: [https://www.edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php)
-
----
-
-## 🚀 Key Features
-
-### 1. Free-First LLM Architecture (Zero Paid API Lock-In)
-- **Primary Provider**: **Google Gemini** (`gemini-1.5-flash` via official SDK + REST fallback).
-- **First Backup**: **Groq API** (`llama-3.3-70b-versatile` with low-latency inference).
-- **Second Backup**: **OpenRouter** with strict free-model enforcement (`:free` suffix guard). Blocks paid models to prevent surprise billing.
-- **Offline / Local Fallback**: **Deterministic Grounded Retrieval Synthesis** produces verified responses from municipal excerpts even when all external LLM APIs are unreachable.
-
-### 2. Grounded Question Answering (RAG)
-- Answers queries using official Edison Township Engineering documentation.
-- Rigorous anti-hallucination guardrail: inquiries outside Engineering return the official municipal redirection:
-  > *"Sorry, this information is out of our context. Please visit https://www.edisonnj.org/document_center/index.php for more information."*
-- Strict privacy: No physical street addresses, phone numbers, or staff contact details are exposed.
-
-### 3. Intelligent Form Identification
-- Distinguishes **Application Forms** (interactive permit applications) from **Reference Documents** (Schedule A yard requirements, pool setbacks, deck coverage), **Fee Schedules**, and **Decision Flowcharts**.
-- Recommends the verified form and offers: *"Would you like me to help you fill out this application?"*
-
-### 4. Conversational Form-Filling State Machine
-- Interactive step-by-step guidance asking one question at a time.
-- Validates inputs (emails, 10-digit phone numbers, positive numbers, choice options).
-- In-flight correction support: residents can type `edit [field_name]` or click edit to update previous answers.
-- Review summary presented before draft generation.
-
-### 5. Official PDF Form Draft Generation
-- Automatically generates standardized municipal draft PDFs.
-- **Unsubmitted Draft Watermark Banner**: Every page is branded with:
-  `*** OFFICIAL REVIEW COPY — UNSUBMITTED MUNICIPAL DRAFT — PHYSICAL SIGNATURE REQUIRED ***`
-- **Blank Physical Ink Signature**: In accordance with municipal guidelines, signature lines are never AI-simulated and are explicitly stamped:
-  `[SIGNATURE REQUIRED - SIGN MANUALLY IN INK AFTER PRINTING]`
-- **Session Isolation**: Each resident's draft is created in a secure, isolated directory (`backend/data/generated_drafts/{session_id}/`) and served through session-authenticated download endpoints.
-
-### 6. Submission Guidance & Checklist
-- Provides required attachment checklists (e.g., sealed property surveys, plot plans, NJ 811 Call Before You Dig tickets, surety bonds, liability insurance certificates).
-- Directs residents to the official municipal portal for final submission.
+Navigating municipal permits and township codes can be complicated for residents. CivicIQ provides a conversational interface that:
+- Answers resident inquiries about municipal Engineering services and requirements.
+- Distinguishes between procedural guidance, fee inquiries, document checklists, and application requests.
+- Guides residents through verified workflows (such as Tree Removal and Soil Movement).
+- Provides direct access to official municipal forms and reference documents without exposing internal municipal flowcharts.
+- Politely redirects out-of-context requests (e.g., animal control, taxes, vital statistics) to the official township portal.
 
 ---
 
-## 🐘 Vector Storage & pgvector Integration
+## ⚡ Currently Implemented Features
 
-CivicIQ natively supports **pgvector (PostgreSQL 16)** with automatic fallback to a local SQLite vector store when Docker/PostgreSQL is offline.
+1. **Grounded Question Answering (RAG)**
+   - Answers questions using text extracted from official Edison Township Engineering documents.
+   - Provides direct clickable links and citations to official application forms.
+   - Includes an offline grounded fallback mode that produces verified answers from excerpts even when external LLM APIs are unavailable.
 
-### Quick Start with Docker:
-```bash
-docker compose up -d
+2. **Service Intent Detection & Context-Aware Conversations**
+   - Differentiates between procedural workflows, fee inquiries, document checklists, and submission questions.
+   - Inquiries such as *"Tree removal cost"* or *"Where do I apply?"* answer the specific question directly rather than forcing the user into a multi-step workflow.
+   - Maintains conversation history across multi-turn exchanges (e.g., answering *"What documents do I need?"* in the context of a previous tree removal question).
+
+3. **Ambiguity Resolution**
+   - Automatically detects short or ambiguous messages (e.g., *"removal"*) and asks a single clarifying question with interactive options (*"What would you like to remove — a tree or soil?"*).
+
+4. **Multi-Provider LLM Resiliency**
+   - Configured with a sequential fallback architecture: **Google Gemini** $\to$ **Groq** $\to$ **OpenRouter** (free models) $\to$ **Local Grounded Synthesis**.
+   - Strict guardrails enforce free-tier usage on OpenRouter (`:free` model suffix required) to eliminate accidental billing.
+
+5. **Document Center & Form Inventory**
+   - Catalogs official Township of Edison Engineering documents.
+   - Supports search and in-app viewing of official municipal PDF files.
+   - Distinguishes interactive application forms from informational reference sheets (e.g., setback requirements).
+
+6. **Out-of-Scope & Unconfigured Service Safeguards**
+   - Non-engineering inquiries receive a standard municipal redirection to the Edison Document Center portal.
+   - Engineering topics without active workflows are explicitly flagged as unconfigured rather than generating inaccurate guidance.
+
+---
+
+## 📋 Supported Services
+
+CivicIQ strictly identifies what is currently active versus what is unconfigured:
+
+### 1. Fully Supported & Verified Services
+
+- **Tree Removal & Preservation**:
+  - **Decision Evaluation**: Evaluates whether a removal is an emergency (dead, dying, or imminent hazard) or standard residential removal.
+  - **Emergency Guidance**: Informs residents that emergency removals may proceed immediately concurrent with submitting an application, provided photographic evidence or arborist certification is obtained.
+  - **Fee Schedule Accuracy**: Advises on the standard \$25 residential filing fee, the senior citizen fee waiver for residents aged 62 or older (with valid proof of age), and the \$200 fee for removals tied to Planning or Zoning Board approval.
+  - **Document Requirements**: Explains requirements including property surveys/tax maps, written statements, and tree marking.
+  - **Form Access**: Delivers the official Township of Edison Tree Permit Application (`3.23.21 tree permit application.pdf`).
+
+- **Soil Movement, Importation & Exportation**:
+  - **Volume Thresholds**: Evaluates projects under Township Chapter 31 based on the 10 cubic yard threshold.
+  - **Importation Guidance**: Directs projects of 10 cubic yards or more to the Soil Importation Permit Application (`Forms_Soil_Importation_Appl.pdf`).
+  - **Exportation Guidance**: Directs projects of 10 cubic yards or more to the Soil Exportation Permit Application (`Forms_Soil_Exportation_App.pdf`).
+  - **Minor Volumes**: Explains that quantities under 10 cubic yards do not require a soil permit, and details standard plot plan review standards for small yard fill.
+
+### 2. Unconfigured Services (Document Catalog Only)
+
+The following services exist in the municipal document catalog, but their interactive workflows are **not yet active**. Queries for these services return an explicit notice that the service is unconfigured:
+- **Street Opening & Road Excavation**: Returns notice; does not solicit utility tickets or bonds.
+- **Residential Zoning & Construction**: Returns notice; informational reference sheets (deck coverage, pool setbacks) remain viewable via the Document Center.
+- **Site Improvement & Grading**: Returns notice.
+- **Sanitary Sewer Connections**: Returns notice.
+
+---
+
+## 🛠️ Technology Stack
+
+- **Backend**: Python 3.11, FastAPI, Uvicorn, Pydantic v2
+- **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons
+- **Vector Storage**: SQLite Vector Store (built-in zero-setup fallback) and PostgreSQL with `pgvector`
+- **PDF & Document Processing**: `pypdf`, ReportLab, BeautifulSoup4
+- **LLM Integrations**: Google Gemini API, Groq API, OpenRouter API (OpenAI-compatible client)
+
+---
+
+## 📁 Project Folder Structure
+
 ```
-This initializes PostgreSQL with the `pgvector` extension and creates HNSW cosine index tables via `init_pgvector.sql`.
+CivicIQ/
+├── backend/
+│   ├── app/
+│   │   ├── config.py                 # Application configuration & environment settings
+│   │   ├── main.py                   # FastAPI REST API endpoints & CORS setup
+│   │   ├── models/                   # Pydantic data schemas & request/response models
+│   │   ├── rag_engine.py             # Grounded retrieval-augmented generation engine
+│   │   ├── flow_engine.py            # Conversational state machine & decision flows
+│   │   ├── vector_store.py           # Unified vector store (pgvector + SQLite fallback)
+│   │   ├── pgvector_store.py         # PostgreSQL pgvector database adapter
+│   │   ├── edison_document_center.py # Catalog & metadata for official documents
+│   │   ├── llm_client.py             # LLM orchestration and fallback synthesis
+│   │   ├── llm_provider/             # Providers for Gemini, Groq, and OpenRouter
+│   │   └── services/                 # Intent detection, form matching, and PDF utilities
+│   ├── data/                         # Local SQLite vector database & runtime drafts
+│   ├── scripts/                      # Document discovery and ingestion pipeline
+│   ├── tests/                        # 98 automated unit, scenario, and routing tests
+│   └── requirements.txt              # Python backend dependencies
+├── departments/
+│   └── engineering/
+│       ├── document_inventory.json   # Verified catalog of municipal documents
+│       ├── flows.json                # Procedural decision trees
+│       ├── knowledge_links.json      # Official portal links and contacts
+│       └── forms/                    # 14 official municipal PDFs
+├── frontend/
+│   ├── public/                       # Static public assets (official Edison logo)
+│   ├── src/
+│   │   ├── app/                      # Next.js 14 App Router pages & layout
+│   │   └── components/               # Chat, Document Center, and UI components
+│   ├── next.config.js                # API proxy rewrites & build configuration
+│   └── package.json                  # Frontend dependencies & scripts
+├── .env.example                      # Environment variables template with safe placeholders
+├── DEPLOYMENT_GUIDE.md               # Step-by-step production deployment guide (Vercel + Render)
+├── render.yaml                       # Render Web Service blueprint definition
+└── README.md                         # Project documentation
+```
 
 ---
 
-## 🛠️ Configuration (`.env`)
+## 📋 Prerequisites
 
-Copy `.env.example` to `.env`:
+- **Python**: 3.10 or 3.11
+- **Node.js**: 18.x or 20.x, with `npm`
+- **Optional API Keys**: At least one free API key from [Google AI Studio](https://aistudio.google.com/), [Groq Console](https://console.groq.com/), or [OpenRouter](https://openrouter.ai/). *(The app functions using local grounded retrieval synthesis if no API keys are provided).*
+- **Optional Database**: A PostgreSQL database with the `pgvector` extension. If omitted, CivicIQ runs out-of-the-box using local SQLite.
 
+---
+
+## 🚀 Local Setup Instructions
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/AartiGoyal16/CivicIQ.git
+cd CivicIQ
+```
+
+### 2. Environment Configuration
+Copy `.env.example` to create your local `.env`:
+```bash
+# On Linux / macOS
+cp .env.example .env
+
+# On Windows (PowerShell)
+Copy-Item .env.example .env
+```
+
+Open `.env` and configure your API keys and settings:
 ```env
-# Official Identity
+# Municipality Metadata
 MUNICIPALITY_NAME=Township of Edison, New Jersey
 
-# Vector Store
-DATABASE_URL=postgresql://postgres:your_password@localhost:5432/civiciq
+# Database & Vector Store
+# Leave empty to use the built-in SQLite vector store automatically:
+DATABASE_URL=
 VECTOR_STORE_PROVIDER=pgvector
-SIMILARITY_THRESHOLD=0.075
-EMBEDDING_DIM=128
 
-# Free-First LLM Architecture
+# LLM Providers (Add any keys you have; free tiers supported)
 LLM_PRIMARY_PROVIDER=gemini
-LLM_FALLBACK_PROVIDERS=groq,openrouter
-LLM_TIMEOUT_SECONDS=30
-LLM_MAX_RETRIES=2
+GEMINI_API_KEY=your_gemini_api_key
+GROQ_API_KEY=your_groq_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 
-# 1. Primary: Google Gemini
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-1.5-flash
-
-# 2. First Backup: Groq
-GROQ_API_KEY=your_groq_api_key_here
-GROQ_BASE_URL=https://api.groq.com/openai/v1
-GROQ_MODEL=llama-3.3-70b-versatile
-
-# 3. Second Backup: OpenRouter (Free Tier Only)
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MODEL=meta-llama/llama-3.2-3b-instruct:free
-OPENROUTER_ALLOW_FREE_MODELS_ONLY=true
-
-# Admin Ingestion Key
+# Security & CORS
 ADMIN_API_KEY=replace_with_a_strong_random_secret
+ENVIRONMENT=development
+ALLOWED_ORIGINS=http://localhost:3000
 ```
+
+> [!IMPORTANT]
+> The `.env` file is excluded from git tracking via `.gitignore`. Never commit real API keys, passwords, or tokens to version control.
 
 ---
 
-## 🚀 Running the Application
+## 🖥️ Starting the Application
 
-### 1. Backend (FastAPI)
+### 1. Start the Backend (FastAPI)
 ```bash
-# From workspace root
+# Create and activate a Python virtual environment (recommended)
+python -m venv venv
+
+# On Linux / macOS:
+source venv/bin/activate
+# On Windows:
+.\venv\Scripts\activate
+
+# Install backend dependencies
+pip install -r backend/requirements.txt
+
+# Start the FastAPI server
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-Swagger API documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
+- API Base: `http://localhost:8000`
+- Interactive API Documentation: `http://localhost:8000/docs`
+- Health Endpoint: `http://localhost:8000/api/health`
 
-### 2. Frontend (Next.js)
+### 2. Start the Frontend (Next.js)
+In a separate terminal:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-CivicIQ web portal: [http://localhost:3000](http://localhost:3000)
+- CivicIQ Web Application: `http://localhost:3000`
 
 ---
 
-## 🧪 Comprehensive Automated Test Suite
+## 🧪 Automated Tests
 
-CivicIQ includes an automated test suite covering all 20 required system specifications without requiring paid API keys:
+CivicIQ includes an automated test suite verifying routing, service isolation, tree removal rules, multi-provider LLM fallback, and out-of-context protections.
 
+Run all tests from the repository root:
 ```bash
-# Run the 20-point comprehensive system test suite
-python -m unittest backend.tests.test_civiciq_full_suite
-
-# Run all 45 automated unit and scenario tests
 python -m unittest discover -s backend/tests -p "test_*.py"
 ```
 
-### Verified Test Matrix (20 Specifications):
-| # | Test Requirement | Implementation | Status |
-|---|---|---|---|
-| 1 | Gemini Primary Provider | Configured & selected by default in `LLMProviderManager` | ✅ PASS |
-| 2 | Groq Fallback | Automatically invoked when Gemini encounters quota/errors | ✅ PASS |
-| 3 | OpenRouter Fallback | Seamlessly invoked when Gemini and Groq fail | ✅ PASS |
-| 4 | Deterministic Grounded Synthesis | Fallback answer generated locally when all free LLMs fail | ✅ PASS |
-| 5 | OpenRouter Free Guard | Paid models without `:free` suffix rejected with `ValueError` | ✅ PASS |
-| 6 | Form Identification: Application | Road opening identified as application with conversational fill | ✅ PASS |
-| 7 | Form Identification: Reference Doc | Schedule A yard requirements marked as reference document | ✅ PASS |
-| 8 | Form Identification: Fee Schedule | Zoning fee schedule marked as informational reference | ✅ PASS |
-| 9 | Form Identification: Flowchart | Permit Flow Charts marked as reference document | ✅ PASS |
-| 10 | Conversational Form: Start | Session initialized at Step 1 with first question prompt | ✅ PASS |
-| 11 | Conversational Form: Sequence | Sequential progression: name $\to$ phone $\to$ email $\to$ address | ✅ PASS |
-| 12 | Input Validation: Email | Rejects invalid email (`not-an-email`) with validation notice | ✅ PASS |
-| 13 | Input Validation: Phone | Rejects malformed phone (`123-abc`) with 10-digit telephone notice | ✅ PASS |
-| 14 | Edit Previous Answer | `edit [field]` updates answer and allows resuming | ✅ PASS |
-| 15 | Review Summary | Comprehensive summary presented before draft generation | ✅ PASS |
-| 16 | PDF Generation: Answers | Generates valid PDF populated with citizen answers | ✅ PASS |
-| 17 | Blank Ink Signature | Signature line explicitly blank with manual ink signing notice | ✅ PASS |
-| 18 | Watermark Banner | Unsubmitted municipal draft red watermark banner applied | ✅ PASS |
-| 19 | Secure PDF Serving | Session-authenticated download URL (`/api/form-session/download/...`) | ✅ PASS |
-| 20 | Session Isolation | Answers from Resident A never leak into Resident B's session | ✅ PASS |
+### Test Coverage Summary:
+- **Test Count**: 98 tests
+- **Result**: `OK (100% passing)`
+- **Key Verified Scenarios**:
+  - Tree Removal conversational emergency flow and form packet delivery.
+  - Senior fee waiver qualification at age 62 or older (per official form).
+  - Ambiguity resolution for short queries (e.g., *"removal"* clarifying tree vs. soil).
+  - Context retention across multi-turn exchanges.
+  - Unconfigured service isolation for Street Opening, Zoning, Site Improvement, and Sewer.
+  - Out-of-context guardrails returning official municipal redirection.
+  - Multi-LLM provider failover (Gemini $\to$ Groq $\to$ OpenRouter $\to$ Grounded Synthesis).
+  - Vector store indexing and query operations across pgvector and SQLite.
 
 ---
 
-## 📂 Department Assets & Document Registry
+## ⚠️ Current Limitations
 
-All documents are officially retrieved from **Edison Township Document Center**:
-- `RoadOpenApp.pdf`: Street Opening & Pavement Excavation Application
-- `Zoning_Permit_Application_Edison.pdf`: Residential Construction & Zoning Permit Application
-- `Sewer_Connection_Charge_Applications.pdf`: Sewer Utility Connection & Tap Application
-- `Permit_Flow_Charts.pdf`: Official Permit Flow Charts & Tree Removal Guidance
-- `Schedule_A_Yard_Requirements.pdf`: Bulk Yard Dimensions & Setback Table
-- `Zoning_Permit_Fees_2022.pdf`: Official Fee Schedule (Ordinance O.2158-2022)
-- `Pool_Setbacks.pdf` & `Deck_Coverage.pdf`: Residential Construction Reference Sheets
-- `Minor_Subdivision_Packet_2024.pdf`: Minor Subdivision Checklist & Application
+- **Engineering Department Scope**: The assistant is currently focused strictly on Edison Township Department of Engineering services.
+- **Active Workflow Scope**: Multi-turn procedural decision workflows are currently implemented for Tree Removal and Soil Movement. Other engineering services provide document access and catalog summaries, but interactive decision flows remain unconfigured.
+- **Scanned Document OCR**: Scanned historical PDFs in the Document Center are cataloged, but full text search for image-only scans requires manual transcription or future OCR integration.
+- **Advisory Guidance**: CivicIQ provides procedural guidance and form preparation assistance. It does not replace formal regulatory reviews, official permits, or inspections by the Township of Edison.
 
 ---
 
-## 🔒 Security & Compliance
+## 🔮 Future Improvements (Planned)
 
-- **No AI Signatures**: Municipal regulations strictly prohibit synthetic signatures. CivicIQ drafts must be printed and signed by hand in ink.
-- **Privacy First**: Physical addresses and staff phone numbers are omitted from chat responses; citizens are directed to the official website [edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php).
-- **Session-Restricted Storage**: Generated drafts are isolated per session to prevent unauthorized access.
+The following features are planned for future versions of CivicIQ:
+- **Interactive Street Opening Workflow**: Complete procedural flow for road opening permits, right-of-way excavations, and utility coordination.
+- **Residential Zoning Decision Trees**: Step-by-step guidance for residential accessory structures (sheds, decks, fences, swimming pools) and building additions.
+- **Automated OCR Ingestion Pipeline**: Ingestion pipeline for scanned municipal documents and fee tables using OCR.
+- **Multi-Department Expansion**: Expanding the platform architecture to cover additional municipal departments (Zoning, Department of Public Works, Health, and Municipal Clerk).
+- **Resident Application Dashboard**: Optional authenticated portal for saving draft progress and tracking permit application statuses.

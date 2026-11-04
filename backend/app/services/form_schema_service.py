@@ -169,83 +169,7 @@ OFFICIAL_FORMS_REGISTRY: Dict[str, FormMetadata] = {
         ]
     ),
 
-    # 3. Tree Removal Clearance & Permit
-    "tree_removal": FormMetadata(
-        form_id="tree_removal",
-        official_title="Edison Township Tree Removal Clearance & Permit Application",
-        form_code="EDISON-ENG-TREE",
-        department="engineering",
-        application_type="Application form",
-        description="Official municipal application under Edison Township Tree Protection Ordinance (Chapter 34) and Permit Flow Chart for tree removal clearances and emergency hazard filings.",
-        official_source_url="https://www.edisonnj.org/document_center/ZONING%20PERMIT%20REQUIREMENT%20SHEET.pdf",
-        local_filename="ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-        signature_required=True,
-        signature_instructions="Applicant must physically sign and date after printing. If emergency hazard, attach photos or arborist certification.",
-        supporting_documents=[
-            "Photographic proof of hazardous / dead / dying condition (if emergency)",
-            "Certified letter from NJ Licensed Tree Expert / Forester (if available)",
-            "Plot sketch showing property boundary and approximate tree trunk diameter (DBH)",
-            "Canopy replacement proposal or contribution waiver"
-        ],
-        submission_method="Submit online via https://www.edisonnj.org/document_center/index.php concurrent to removal if emergency hazard, or in advance if planned.",
-        fee_info="$25 application review fee (fee waived for verified hazardous/dead trees)",
-        is_verified=True,
-        last_verified_date="2026-11-04",
-        fields=[
-            FormField(
-                name="property_owner_name",
-                label="Property Owner Full Name",
-                field_type="text",
-                required=True,
-                help_text="Name of Edison property owner."
-            ),
-            FormField(
-                name="property_address",
-                label="Property Street Address",
-                field_type="address",
-                required=True,
-                help_text="Site address where tree(s) are located."
-            ),
-            FormField(
-                name="block_lot",
-                label="Block and Lot",
-                field_type="text",
-                required=True,
-                help_text="Municipal Block and Lot numbers."
-            ),
-            FormField(
-                name="is_emergency_hazard",
-                label="Is this removal due to an imminent hazard, dead or dying tree?",
-                field_type="choice",
-                required=True,
-                options=["Yes, Emergency Imminent Danger / Dead or Dying Tree", "No, Planned Landscape Removal"],
-                help_text="Emergency removals allow immediate action with concurrent permit filing."
-            ),
-            FormField(
-                name="emergency_reason",
-                label="Condition of Tree & Reason for Removal",
-                field_type="text",
-                required=True,
-                help_text="Describe species, approximate trunk diameter (DBH), and specific damage/hazard (e.g., cracked trunk, leaning over roof)."
-            ),
-            FormField(
-                name="tree_quantity",
-                label="Number of Trees Proposed for Removal",
-                field_type="number",
-                required=True,
-                help_text="Total number of trees meeting municipal size threshold (>=6 in DBH)."
-            ),
-            FormField(
-                name="contact_phone",
-                label="Contact Phone Number",
-                field_type="phone",
-                required=True,
-                help_text="Daytime telephone number."
-            )
-        ]
-    ),
-
-    # 4. Sewer Connection Charge Application
+    # 3. Sewer Connection Charge Application
     "sewer_connection": FormMetadata(
         form_id="sewer_connection",
         official_title="Township of Edison Sewer Connection Charge Application",
@@ -318,6 +242,22 @@ OFFICIAL_FORMS_REGISTRY: Dict[str, FormMetadata] = {
 # Distinct registry of non-application official documents (information sheets, guidelines, flowcharts, fee schedules)
 # CivicIQ will NEVER label these as application forms or offer to fill them out as applications!
 OFFICIAL_REFERENCE_DOCUMENTS: Dict[str, FormMetadata] = {
+    "tree_removal": FormMetadata(
+        form_id="tree_removal",
+        official_title="Township of Edison Official Permit Flow Charts - Tree Removal Permit Procedure",
+        form_code="EDISON-ENG-TREE-FLOW",
+        department="engineering",
+        application_type="Procedure/flowchart",
+        description="Official decision flowchart determining municipal permit requirements for tree removals and emergency hazard protocols (Page 3 of Permit Flow Charts).",
+        official_source_url="https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+        local_filename="Permit_Flow_Charts.pdf",
+        signature_required=False,
+        is_verified=False,
+        last_verified_date="2026-11-04",
+        supporting_documents=[],
+        submission_method="Informational flowchart only. A standalone tree removal application form has not yet been verified on the official Document Center (https://www.edisonnj.org/document_center/index.php).",
+        fields=[]
+    ),
     "permit_flow_charts": FormMetadata(
         form_id="permit_flow_charts",
         official_title="Township of Edison Official Permit Flow Charts",

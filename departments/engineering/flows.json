@@ -288,104 +288,106 @@
     },
     {
       "id": "tree_removal_flow",
-      "title": "Edison Township Tree Removal Clearance Workflow",
+      "title": "Township of Edison Tree Removal Permit Decision Workflow",
       "code": "FLOW-EDISON-TREE",
       "category": "Environmental & Engineering",
-      "description": "Procedural guidance under Edison Township Tree Protection Ordinance (Chapter 34) for tree removal permits, hazard evaluations, and tree replacement obligations.",
-      "initial_step": "step_tree_reason",
+      "description": "Official step-by-step decision tree under the Township of Edison Permit Flow Charts (Page 3) to determine whether a tree removal permit is required, emergency hazard protocols, and concurrent filing procedures.",
+      "initial_step": "step_removing_trees_check",
       "steps": {
-        "step_tree_reason": {
-          "id": "step_tree_reason",
+        "step_removing_trees_check": {
+          "id": "step_removing_trees_check",
           "type": "question",
-          "title": "Step 1 of 2: Reason for Tree Removal",
-          "message": "Under Edison Township Municipal Code Chapter 34, healthy mature trees are protected. What is the reason for your proposed tree removal?",
-          "options": [
-            {
-              "id": "tree_hazardous_dead",
-              "label": "Dead, Diseased, or Structurally Hazardous Tree",
-              "description": "Posing imminent hazard to dwellings, power lines, or public safety",
-              "next_step": "step_tree_size_check"
-            },
-            {
-              "id": "tree_construction_clearing",
-              "label": "Required for Approved Construction / Addition / Driveway",
-              "description": "Tree is located within approved dwelling footprint or driveway",
-              "next_step": "step_tree_size_check"
-            },
-            {
-              "id": "tree_elective_landscape",
-              "label": "Elective Landscape / Non-Emergency Removal",
-              "description": "Aesthetic or yard clearing on private residential parcel",
-              "next_step": "step_tree_size_check"
-            }
-          ]
-        },
-        "step_tree_size_check": {
-          "id": "step_tree_size_check",
-          "type": "prerequisite_check",
-          "title": "Step 2 of 2: Tree Diameter at Breast Height (DBH)",
-          "message": "Township regulations apply to trees with a trunk diameter of 6 inches or greater measured 4.5 feet above grade (DBH). Does the tree meet or exceed 6 inches in diameter?",
-          "help_text": "Trees under 6 inches DBH on residential property do not require municipal tree permits.",
+          "title": "Tree Removal Inquiry: Step 1 of 2",
+          "message": "I can help you understand the Township of Edison's tree-removal requirements.\n\nFirst, are you planning to remove one or more trees?",
           "is_mandatory_prerequisite": true,
           "options": [
             {
-              "id": "tree_over_6in",
-              "label": "Yes, Tree measures 6 inches or larger in diameter",
-              "description": "Municipal permit & on-site inspection required under Chapter 34",
-              "next_step": "issue_tree_removal_guidance"
+              "id": "opt_removing_trees_yes",
+              "label": "Yes, I am planning to remove one or more trees",
+              "description": "Proceed to emergency condition evaluation",
+              "next_step": "step_emergency_check"
             },
             {
-              "id": "tree_under_6in",
-              "label": "No, Small ornamental tree under 6 inches in diameter",
-              "description": "Exempt from municipal tree removal permit requirements",
-              "next_step": "inform_tree_exemption"
+              "id": "opt_removing_trees_no",
+              "label": "No, I am not removing any trees",
+              "description": "Check if project involves a subdivision or demolition permit",
+              "next_step": "step_subdivision_demolition_check"
             }
           ]
         },
-        "inform_tree_exemption": {
-          "id": "inform_tree_exemption",
+        "step_emergency_check": {
+          "id": "step_emergency_check",
           "type": "question",
-          "title": "Permit Exemption Confirmed",
-          "message": "Good news! Under Edison Township Code Chapter 34, trees measuring under 6 inches in diameter (DBH) on private residential property are exempt from tree removal permits, provided they are not located in designated conservation easements or public right-of-way.",
+          "title": "Emergency & Hazard Check: Step 2",
+          "message": "Is this an emergency situation where the tree is dead, dying, or poses an immediate danger?",
+          "is_mandatory_prerequisite": true,
           "options": [
             {
-              "id": "done_exemption",
-              "label": "Understood / Return to Main Assistant",
-              "description": "No formal permit required",
-              "next_step": "step_tree_reason"
+              "id": "opt_emergency_yes",
+              "label": "Yes, it is an emergency (dead, dying, or imminent danger)",
+              "description": "Emergency protocol under Edison Permit Flow Chart",
+              "next_step": "step_emergency_protocol_result"
+            },
+            {
+              "id": "opt_emergency_no",
+              "label": "No, it is a planned removal of a healthy tree",
+              "description": "Standard tree removal permit requirement",
+              "next_step": "step_planned_permit_required_result"
             }
           ]
         },
-        "issue_tree_removal_guidance": {
-          "id": "issue_tree_removal_guidance",
-          "type": "form_issuance",
-          "title": "Edison Township Tree Removal Inspection Procedure",
-          "message": "Tree removal permit required. You must submit a Tree Removal Request to the Division of Engineering. A municipal tree officer will conduct a field inspection prior to issuance.",
-          "form_code": "EDISON-TREE-REG",
-          "form_title": "Edison Township Tree Removal Permit Application & Inspection Request",
-          "form_file": "ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-          "department_id": "engineering",
-          "fill_in_instructions": "1. Provide property address, owner contact, and number of trees proposed for removal.\n2. Submit plot sketch showing tree locations and approximate diameter (DBH).\n3. If claiming dead/diseased status, append evaluation letter from a NJ Licensed Tree Expert (LTE).\n4. Submit to Engineering Tree Desk, 100 Municipal Blvd.",
-          "required_attachments": [
-            "Tree Removal Application Request",
-            "Plot sketch showing location and species of trees to be removed",
-            "Photographs of tree condition (especially if claiming hazard status)",
-            "For commercial parcels: Tree replacement mitigation plan"
-          ],
-          "fee_info": {
-            "amount": "Standard tree permit fee per tree; fee waived for verified dead/hazardous trees",
-            "payment_methods": "Check payable to 'Township of Edison'"
-          },
-          "submission_routing": {
-            "department": "Edison Township Division of Engineering",
-            "desk": "Engineering Tree Officer Desk, 100 Municipal Blvd",
-            "building_address": "100 Municipal Blvd, Edison, NJ 08817",
-            "hours": "Monday – Friday: 8:00 AM – 4:30 PM",
-            "contact_phone": "(732) 248-7288",
-            "contact_email": "engineering@edisonnj.gov",
-            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
-          },
-          "lead_time": "7 to 10 business days for field inspection sign-off"
+        "step_subdivision_demolition_check": {
+          "id": "step_subdivision_demolition_check",
+          "type": "question",
+          "title": "Subdivision or Demolition Check: Step 2",
+          "message": "Is this application part of a subdivision or does it require a demolition permit from Code Enforcement?",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "opt_subdivision_demo_yes",
+              "label": "Yes, part of a subdivision or requires demolition permit",
+              "description": "Permit required under municipal flowchart",
+              "next_step": "step_subdivision_permit_required_result"
+            },
+            {
+              "id": "opt_subdivision_demo_no",
+              "label": "No, not part of a subdivision or demolition permit",
+              "description": "Permit is not required under municipal flowchart",
+              "next_step": "step_permit_not_required_result"
+            }
+          ]
+        },
+        "step_emergency_protocol_result": {
+          "id": "step_emergency_protocol_result",
+          "type": "procedure_result",
+          "title": "Emergency Tree Removal Protocol",
+          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n1. **Take Documentation Proof**: Take photographic proof OR obtain a certified letter from a licensed arborist/forester stating that the tree is dead/dying and is an imminent danger.\n2. **Remove the Tree Immediately**: For safety, you are authorized to remove the tree without waiting for advance approval.\n3. **Concurrent Permit Submission**: You must submit for the permit concurrent to (or immediately following) the tree removal along with your proof.\n\n*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*",
+          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "options": []
+        },
+        "step_planned_permit_required_result": {
+          "id": "step_planned_permit_required_result",
+          "type": "procedure_result",
+          "title": "Tree Removal Permit Required",
+          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n• **A Tree Removal Permit is REQUIRED** before removing the tree.\n\n*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*",
+          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "options": []
+        },
+        "step_subdivision_permit_required_result": {
+          "id": "step_subdivision_permit_required_result",
+          "type": "procedure_result",
+          "title": "Tree Removal Permit Required (Subdivision / Demolition)",
+          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n• Because this project is part of a subdivision or requires a demolition permit from Code Enforcement, **a Tree Removal Permit is REQUIRED**.\n\n*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*",
+          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "options": []
+        },
+        "step_permit_not_required_result": {
+          "id": "step_permit_not_required_result",
+          "type": "procedure_result",
+          "title": "Tree Removal Permit NOT Required",
+          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n• Because you are not removing trees and your project is not part of a subdivision or demolition permit from Code Enforcement, **a Tree Removal Permit is NOT required**.",
+          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "options": []
         }
       }
     },

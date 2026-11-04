@@ -135,31 +135,21 @@ class TestEdisonResidentScenarios(unittest.TestCase):
             message="could you please guide me with tree removal",
             department_id="engineering"
         ))
-        self.assertIn("do you currently have an approved permit", r1.message.lower())
+        self.assertIn("planning to remove one or more trees", r1.message.lower())
         self.assertIsNone(r1.form_packet)
+        self.assertEqual(r1.mode, "flow")
 
-        # Turn 2: Urgency reported with no permit
+        # Turn 2: Urgency / emergency reported
         r2 = chat_endpoint(ChatRequest(
             session_id=sid,
-            message="no it's urgent no time to ask for permit",
+            message="yes, it's an emergency, the tree is dead and cracked",
             department_id="engineering"
         ))
-        self.assertIn("what is the emergency condition of the tree", r2.message.lower())
+        self.assertIn("photographic proof", r2.message.lower())
+        self.assertIn("concurrent", r2.message.lower())
         self.assertIsNone(r2.form_packet)
-
-        # Turn 3: Citizen provides emergency reason
-        r3 = chat_endpoint(ChatRequest(
-            session_id=sid,
-            message="the tree is dead and cracked, leaning toward my roof",
-            department_id="engineering"
-        ))
-        self.assertIn("photographic proof", r3.message.lower())
-        self.assertIn("concurrent", r3.message.lower())
-        self.assertIsNotNone(r3.form_packet)
-        self.assertIsNone(r3.form_packet.submission_routing.building_address)
-        self.assertIsNone(r3.form_packet.submission_routing.contact_phone)
-        self.assertEqual(r3.form_packet.submission_routing.digital_upload_url, "https://www.edisonnj.org/document_center/index.php")
-        print("[SCENARIO 9 PASSED] Multi-turn tree removal flowchart: urgency evaluated, photo proof instructed, and form packet attached without contact/address leaks")
+        self.assertIn("document_center/index.php", r2.message)
+        print("[SCENARIO 9 PASSED] Multi-turn tree removal flowchart: Page 3 flowchart verified without hallucinating unverified forms")
 
 if __name__ == "__main__":
     unittest.main()

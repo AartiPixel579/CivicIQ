@@ -97,6 +97,7 @@ class FlowStep(BaseModel):
     fee_info: Optional[FeeInfo] = None
     submission_routing: Optional[SubmissionRouting] = None
     lead_time: Optional[str] = None
+    official_source_url: Optional[str] = None
 
 class FlowDefinition(BaseModel):
     id: str

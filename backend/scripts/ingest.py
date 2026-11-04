@@ -100,15 +100,58 @@ EDISON_OFFICIAL_CATALOG = [
         "target_desk": "Division of Zoning / Engineering Intake Counter, 100 Municipal Blvd, Edison, NJ 08817"
     },
     {
-        "id": "edison_permit_flow_charts",
-        "title": "Township of Edison Official Permit Flow Charts",
+        "id": "edison_permit_flow_road_opening",
+        "title": "Township of Edison Official Permit Flow Charts - Road Opening Permit",
         "department": "engineering",
         "document_type": "Procedure/guideline",
-        "service_or_permit_name": "Municipal Permit Flow Charts (Tree Removal, Road Opening, Soil, Site Improvement)",
-        "original_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+        "service_or_permit_name": "Street Opening & Right-of-Way Road Excavation Permit",
+        "original_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf#page=2",
         "local_filename": "Permit_Flow_Charts.pdf",
+        "page_number": 2,
+        "workflow_id": "street_opening_flow",
+        "official_summary": "Official Edison Township Road Opening decision tree (Page 2 of Permit Flow Charts): Are you doing work in the Public Right of Way (sidewalk, curb, apron, etc.)? If yes, a Road Opening Permit is required from the Department of Public Works. If no, a Road Opening Permit is NOT required.",
+        "fee_info": "Standard municipal schedules",
+        "target_desk": "Department of Public Works / Engineering"
+    },
+    {
+        "id": "edison_permit_flow_tree_removal",
+        "title": "Township of Edison Official Permit Flow Charts - Tree Removal Permit",
+        "department": "engineering",
+        "document_type": "Procedure/guideline",
+        "service_or_permit_name": "Tree Removal Permit Procedure",
+        "original_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf#page=3",
+        "local_filename": "Permit_Flow_Charts.pdf",
+        "page_number": 3,
         "workflow_id": "tree_removal_flow",
-        "official_summary": "Official Edison Township decision tree flowcharts: (1) Road Opening Permit (DPW): Required for work in Public Right of Way (sidewalk, curb, apron). (2) Tree Removal Permit: If removing trees, check if emergency. If emergency (eminent danger, dead/dying), take photographic proof or certified arborist/forester letter stating dead/dying and eminent danger, remove tree immediately for safety, and submit for permit concurrent to tree removal. If non-emergency, check if part of subdivision or requiring demolition permit from Code; if yes, permit is required. (3) Soil Import/Export Permit: Required for 10+ cubic yards. (4) Site Improvement Permit: Required if >500 s.f. impervious or >1,250 s.f. disturbance, or drainage/grading changes.",
+        "official_summary": "Official Edison Township Tree Removal Permit decision tree (Page 3 of Permit Flow Charts): (1) Are you removing any trees? If Yes, check if emergency. If emergency (imminent danger, dead/dying), take photographic proof or certified arborist/forester letter stating dead/dying and imminent danger, remove tree immediately for safety, and submit for permit concurrent to tree removal. If not emergency, permit is required. (2) If not removing trees, check if application is part of a subdivision or requires demolition permit from Code Enforcement; if yes, permit is required; if no, permit is not required.",
+        "fee_info": "Standard municipal fee schedule (fee waived for verified emergency hazards under municipal policy)",
+        "target_desk": "Department of Engineering"
+    },
+    {
+        "id": "edison_permit_flow_soil",
+        "title": "Township of Edison Official Permit Flow Charts - Soil Import / Export Permit",
+        "department": "engineering",
+        "document_type": "Procedure/guideline",
+        "service_or_permit_name": "Soil Import / Export Permits",
+        "original_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf#page=4",
+        "local_filename": "Permit_Flow_Charts.pdf",
+        "page_number": 4,
+        "workflow_id": None,
+        "official_summary": "Official Edison Township Soil Import/Export decision tree (Page 4 of Permit Flow Charts): Are you importing or exporting 10 cubic yards or more of soil to/from your site? If Yes (Import) -> Soil Import Permit Required. If Yes (Export) -> Soil Export Permit Required. If No -> Permit not required.",
+        "fee_info": "Standard municipal schedules",
+        "target_desk": "Department of Engineering"
+    },
+    {
+        "id": "edison_permit_flow_site",
+        "title": "Township of Edison Official Permit Flow Charts - Site Improvement Permit",
+        "department": "engineering",
+        "document_type": "Procedure/guideline",
+        "service_or_permit_name": "Site Improvement Permit / Waiver",
+        "original_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf#page=5",
+        "local_filename": "Permit_Flow_Charts.pdf",
+        "page_number": 5,
+        "workflow_id": None,
+        "official_summary": "Official Edison Township Site Improvement decision tree (Page 5 of Permit Flow Charts): Are you proposing work on property? Check if more than 500 s.f. new impervious coverage or 1,250 s.f. disturbance, or grading/drainage improvements. If yes, Site Improvement Permit required.",
         "fee_info": "Standard municipal schedules",
         "target_desk": "Department of Engineering"
     },
@@ -165,19 +208,6 @@ EDISON_OFFICIAL_CATALOG = [
         "target_desk": "Planning Board / Zoning Board Secretary, 100 Municipal Blvd, Edison, NJ 08817"
     },
     {
-        "id": "edison_tree_removal",
-        "title": "Edison Township Tree Removal Permit & Forestry Preservation Guidelines",
-        "department": "engineering",
-        "document_type": "Procedure/guideline",
-        "service_or_permit_name": "Tree Removal Clearance & Preservation Permit",
-        "original_url": "https://www.edisonnj.org/departments/engineering/tree_removal.php",
-        "local_filename": None,
-        "workflow_id": "tree_removal_flow",
-        "official_summary": "Under Edison Township Code Chapter 37 (Tree Preservation), removal of trees with Diameter at Breast Height (DBH) of 6 inches or greater requires municipal tree clearance or replacement planting. Submit plot plan identifying trees to be removed to the Township Arborist / Engineering Desk.",
-        "fee_info": "$25 application fee per tree or canopy replacement plan",
-        "target_desk": "Division of Engineering / Municipal Arborist, 100 Municipal Blvd, Edison, NJ 08817 (engineering@edisonnj.gov)"
-    },
-    {
         "id": "edison_document_center_index",
         "title": "Township of Edison Official Document Center & Forms Repository",
         "department": "engineering",
@@ -192,26 +222,31 @@ EDISON_OFFICIAL_CATALOG = [
     }
 ]
 
-def extract_text_from_pdf(pdf_path: Path) -> Tuple[str, int, str]:
+def extract_text_from_pdf(pdf_path: Path, page_number: Optional[int] = None) -> Tuple[str, int, str]:
     """
     Extracts text from PDF using pypdf.
+    If page_number is specified (1-indexed), extracts only that page.
     Returns: (text, page_count, extraction_status)
     """
     try:
         reader = pypdf.PdfReader(str(pdf_path))
         num_pages = len(reader.pages)
         full_text = []
-        for idx, page in enumerate(reader.pages):
-            page_text = page.extract_text() or ""
-            if page_text.strip():
-                full_text.append(f"[Page {idx+1}]\n{page_text.strip()}")
+        if page_number and 1 <= page_number <= num_pages:
+            p_text = reader.pages[page_number - 1].extract_text() or ""
+            if p_text.strip():
+                full_text.append(f"[Page {page_number}]\n{p_text.strip()}")
+        else:
+            for idx, page in enumerate(reader.pages):
+                page_text = page.extract_text() or ""
+                if page_text.strip():
+                    full_text.append(f"[Page {idx+1}]\n{page_text.strip()}")
         
         extracted_content = "\n\n".join(full_text).strip()
         
-        if len(extracted_content) > 50:
+        if len(extracted_content) > 30:
             return extracted_content, num_pages, "extracted"
         else:
-            # Scanned PDF without text layer (image scan)
             return "", num_pages, "scanned_pdf_needs_ocr"
     except Exception as e:
         logger.error(f"Error extracting text from {pdf_path}: {e}")
@@ -278,7 +313,7 @@ def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict
             if file_path.exists():
                 local_path = f"departments/engineering/forms/{local_filename}"
                 file_size_bytes = file_path.stat().st_size
-                text, pages, status = extract_text_from_pdf(file_path)
+                text, pages, status = extract_text_from_pdf(file_path, page_number=item.get("page_number"))
                 page_count = pages
                 extraction_status = status
                 extracted_text = text

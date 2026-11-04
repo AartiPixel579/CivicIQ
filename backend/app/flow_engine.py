@@ -1,3 +1,4 @@
+import re
 import logging
 from typing import Dict, Optional, Tuple, Any
 from .department_loader import registry
@@ -29,10 +30,15 @@ class FlowEngine:
         if session_id in self.sessions:
             del self.sessions[session_id]
 
-    def start_flow(self, session_id: str, department_id: str, flow_id: str) -> Tuple[bool, str, Optional[FlowStep], Optional[FormIssuanceDetails]]:
+    def start_flow(
+        self,
+        session_id: str,
+        department_id: str,
+        flow_id: str,
+        initial_user_text: str = ""
+    ) -> Tuple[bool, str, Optional[FlowStep], Optional[FormIssuanceDetails]]:
         flow = registry.get_flow(department_id, flow_id)
         if not flow:
-            # Try searching across all departments
             found = registry.find_flow_by_id(flow_id)
             if found:
                 department_id, flow = found
@@ -47,9 +53,48 @@ class FlowEngine:
         if not current_step:
             return False, f"Initial step '{flow.initial_step}' not found in flow {flow_id}.", None, None
 
+        # Check if user's initial query already answers procedural steps (e.g. for tree removal)
+        if flow_id == "tree_removal_flow" and initial_user_text:
+            t = initial_user_text.lower().strip()
+            # 1. Dead, falling, hazard, or emergency mentioned upfront
+            if any(w in t for w in ["dead", "dying", "danger", "hazardous", "hazard", "falling", "imminent", "emergency", "urgent", "crack", "cracked", "split", "leaning", "lean"]):
+                dest_step = flow.steps.get("step_emergency_protocol_result")
+                if dest_step:
+                    session.current_step_id = "step_emergency_protocol_result"
+                    session.completed = True
+                    return True, "Emergency protocol delivered.", dest_step, None
+
+            # 2. Healthy / planned removal mentioned upfront
+            if any(w in t for w in ["healthy", "planned", "routine", "landscape"]) and not any(w in t for w in ["dead", "dying", "hazard"]):
+                dest_step = flow.steps.get("step_planned_permit_required_result")
+                if dest_step:
+                    session.current_step_id = "step_planned_permit_required_result"
+                    session.completed = True
+                    return True, "Permit requirement confirmed.", dest_step, None
+
+            # 3. Not removing trees mentioned upfront
+            if any(w in t for w in ["not removing", "no tree", "no trees", "none", "don't want to remove", "dont want to remove", "not planning to remove"]):
+                dest_step = flow.steps.get("step_subdivision_demolition_check")
+                if dest_step:
+                    session.current_step_id = "step_subdivision_demolition_check"
+                    return True, "Subdivision check required.", dest_step, None
+
+            # 4. Subdivision or demolition mentioned upfront
+            if any(w in t for w in ["subdivision", "demolition", "demo"]) and not any(w in t for w in ["not part", "neither"]):
+                dest_step = flow.steps.get("step_subdivision_permit_required_result")
+                if dest_step:
+                    session.current_step_id = "step_subdivision_permit_required_result"
+                    session.completed = True
+                    return True, "Subdivision permit required.", dest_step, None
+
         return True, "Procedure initiated.", current_step, None
 
-    def advance_step(self, session_id: str, option_id: str) -> Tuple[bool, str, Optional[FlowStep], Optional[FormIssuanceDetails]]:
+    def advance_step(
+        self,
+        session_id: str,
+        option_id: Optional[str] = None,
+        user_text: Optional[str] = None
+    ) -> Tuple[bool, str, Optional[FlowStep], Optional[FormIssuanceDetails]]:
         session = self.get_session(session_id)
         if not session:
             return False, "No active procedure found. Please select a procedure to start.", None, None
@@ -62,16 +107,43 @@ class FlowEngine:
         if not current_step:
             return False, "Current step is invalid.", None, None
 
+        # Resolve option_id from natural language user_text if option_id was not explicitly sent
+        if not option_id and user_text:
+            t = user_text.lower().strip()
+            if session.flow_id == "tree_removal_flow":
+                if session.current_step_id == "step_removing_trees_check":
+                    if re.search(r'\b(no|nope|not|none|negative)\b', t):
+                        option_id = "opt_removing_trees_no"
+                    elif re.search(r'\b(yes|yeah|yep|sure|removing|remove|one|1|tree|trees)\b', t):
+                        option_id = "opt_removing_trees_yes"
+                elif session.current_step_id == "step_emergency_check":
+                    if any(w in t for w in ["yes", "dead", "dying", "danger", "urgent", "emergency", "hazard", "falling", "cracked", "split", "leaning", "lean", "risk"]):
+                        option_id = "opt_emergency_yes"
+                    elif any(w in t for w in ["no", "healthy", "not urgent", "not emergency", "planned", "routine", "fine"]):
+                        option_id = "opt_emergency_no"
+                elif session.current_step_id == "step_subdivision_demolition_check":
+                    if any(w in t for w in ["yes", "subdivision", "demolition", "demo"]) and not ("no" in t or "not" in t):
+                        option_id = "opt_subdivision_demo_yes"
+                    elif any(w in t for w in ["no", "neither", "not part", "nope"]):
+                        option_id = "opt_subdivision_demo_no"
+            else:
+                # General option text matching for other flows
+                if current_step.options:
+                    for opt in current_step.options:
+                        if opt.id.lower() in t or opt.label.lower() in t:
+                            option_id = opt.id
+                            break
+
         # Find matching option
         matched_option = None
-        if current_step.options:
+        if current_step.options and option_id:
             for opt in current_step.options:
                 if opt.id == option_id:
                     matched_option = opt
                     break
 
         if not matched_option:
-            return False, f"Invalid choice '{option_id}' for current step '{current_step.title}'.", current_step, None
+            return False, f"Invalid choice '{option_id or user_text}' for current step '{current_step.title}'.", current_step, None
 
         # Record history
         session.history.append({
@@ -81,6 +153,20 @@ class FlowEngine:
         })
 
         next_step_id = matched_option.next_step
+
+        # If resident's message already answered upcoming question, advance directly
+        if session.flow_id == "tree_removal_flow" and user_text:
+            t = user_text.lower().strip()
+            if session.current_step_id == "step_removing_trees_check" and option_id == "opt_removing_trees_yes":
+                if any(w in t for w in ["dead", "dying", "danger", "urgent", "emergency", "hazard", "falling", "cracked", "split", "leaning", "lean", "risk"]):
+                    next_step_id = "step_emergency_protocol_result"
+                elif any(w in t for w in ["healthy", "planned", "routine"]) and not any(w in t for w in ["dead", "dying", "hazard"]):
+                    next_step_id = "step_planned_permit_required_result"
+            elif session.current_step_id == "step_removing_trees_check" and option_id == "opt_removing_trees_no":
+                if any(w in t for w in ["subdivision", "demolition", "demo"]) and not ("not" in t or "neither" in t):
+                    next_step_id = "step_subdivision_permit_required_result"
+                elif any(w in t for w in ["neither", "not part", "no subdivision", "not subdivision"]):
+                    next_step_id = "step_permit_not_required_result"
         next_step = flow.steps.get(next_step_id)
 
         if not next_step:
@@ -88,14 +174,16 @@ class FlowEngine:
 
         session.current_step_id = next_step_id
 
+        # Check if destination step completes the flow
+        if next_step.type in ["procedure_result", "disqualification"] or not next_step.options:
+            session.completed = True
+
         # Check if destination step is form issuance
         if next_step.type == "form_issuance":
             session.completed = True
             dept_config = registry.get_department(session.department_id)
 
-            # Build FormIssuanceDetails
             download_url = f"/api/forms/{session.department_id}/{next_step.form_file}"
-            
             sub_routing = next_step.submission_routing
             if not sub_routing and dept_config:
                 sub_routing = SubmissionRouting(

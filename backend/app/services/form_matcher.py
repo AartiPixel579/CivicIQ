@@ -22,6 +22,22 @@ class FormMatcherService:
             for msg in history[-4:]:
                 context_text += " " + msg.get("content", "").lower()
 
+        # 0. Tree Removal Clearance / Decision Flow (Check first to avoid any history bleed)
+        # Standalone application form is NOT verified on Document Center; only procedure flowchart exists.
+        is_tree_query = bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps|branch|branches)\b', q))
+        in_tree_context = bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps|branch|branches)\b', context_text))
+        is_other_explicit = any(w in q for w in ["road opening", "street opening", "saw-cut", "sewer", "zoning permit", "building permit"])
+        if is_tree_query or (in_tree_context and not is_other_explicit):
+            doc = OFFICIAL_REFERENCE_DOCUMENTS.get("tree_removal") or OFFICIAL_REFERENCE_DOCUMENTS["permit_flow_charts"]
+            score = 0.95 if is_tree_query else 0.82
+            return FormRecommendation(
+                form=doc,
+                confidence_score=score,
+                reason="Matches official Edison Township Permit Flow Charts (Page 3: Tree Removal Permit). Standalone application form not yet verified on Document Center.",
+                is_application_form=False,
+                offer_conversational_fill=False
+            )
+
         # 1. Road Opening / Street Excavation
         if any(w in context_text for w in [
             "road opening", "street opening", "excavat", "saw-cut", "trench",
@@ -33,21 +49,6 @@ class FormMatcherService:
                 form=form,
                 confidence_score=score,
                 reason="Matches official Edison Township Road Opening & Pavement Excavation regulations.",
-                is_application_form=True,
-                offer_conversational_fill=True
-            )
-
-        # 2. Tree Removal Clearance / Permit
-        if any(w in context_text for w in [
-            "tree removal", "remove a tree", "cut tree", "cut down tree", "hazardous tree",
-            "dead tree", "dying tree", "tree permit", "tree clearance", "removing tree"
-        ]):
-            form = OFFICIAL_FORMS_REGISTRY["tree_removal"]
-            score = 0.95 if any(w in q for w in ["tree removal", "remove a tree", "tree permit"]) else 0.82
-            return FormRecommendation(
-                form=form,
-                confidence_score=score,
-                reason="Matches official Edison Township Tree Protection (Chapter 34) and Permit Flow Chart.",
                 is_application_form=True,
                 offer_conversational_fill=True
             )

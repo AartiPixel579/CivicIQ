@@ -13,7 +13,7 @@ from .config import (
 )
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
-    DepartmentConfig, FlowDefinition, RagResult,
+    DepartmentConfig, FlowDefinition, RagResult, RagCitation,
     FormStartSessionRequest, FormAnswerRequest, FormEditRequest,
     FormQuestionResponse, FormRecommendation
 )
@@ -240,16 +240,22 @@ def chat_endpoint(req: ChatRequest):
 
     # Case 0.5: Citizen accepts offer to fill out an application form
     last_bot_msg = history[-1].get("content", "").lower() if history else ""
-    if any(agree in msg_clean for agree in ["yes, please", "yes please", "yes", "fill it out", "help me fill", "start application", "prepare application", "fill out the application"]):
+    offered_form_fill = any(phrase in last_bot_msg for phrase in [
+        "help you fill out this application",
+        "help you fill out the application",
+        "prepare this application"
+    ])
+    explicit_fill_intent = any(phrase in msg_clean for phrase in [
+        "fill it out", "help me fill", "start application", "prepare application", "fill out the application"
+    ])
+    if (offered_form_fill or explicit_fill_intent) and (not session or session.completed):
         # Find which form was offered or matches context
         target_form_id = None
-        if "tree removal" in last_bot_msg or "tree" in msg_clean:
-            target_form_id = "tree_removal"
-        elif "road opening" in last_bot_msg or "road" in msg_clean or "excavation" in msg_clean:
+        if "road opening" in last_bot_msg or "road" in msg_clean or "excavation" in msg_clean:
             target_form_id = "road_opening"
         elif "sewer" in last_bot_msg or "sewer" in msg_clean:
             target_form_id = "sewer_connection"
-        elif "zoning" in last_bot_msg or "permit" in last_bot_msg:
+        elif "zoning" in last_bot_msg:
             target_form_id = "zoning_permit"
         else:
             rec = form_matcher.match_form(req.message, history=history)
@@ -270,36 +276,76 @@ def chat_endpoint(req: ChatRequest):
                     form_session_info=q_resp.model_dump()
                 )
 
-    # Case 1: Citizen clicked an option in an active flow
-    if req.selected_option_id and session and not session.completed:
-        success, msg, step, form_packet = flow_engine.advance_step(
-            session_id=req.session_id,
-            option_id=req.selected_option_id
-        )
-        if success and step:
-            history.append({"role": "user", "content": f"Selected option: {req.selected_option_id}"})
-            history.append({"role": "assistant", "content": step.message})
-            return ChatResponse(
+    # Case 1: Active procedural flow (advanced by button option selection OR typed natural language!)
+    if session and not session.completed:
+        # Check if the user is attempting to completely change topics (e.g. asking about road opening while in tree flow)
+        different_flow = rag_engine.detect_flow_intent(req.message, req.department_id)
+        if different_flow and different_flow[1] != session.flow_id:
+            flow_engine.reset_session(req.session_id)
+            session = None
+        else:
+            success, msg, step, form_packet = flow_engine.advance_step(
                 session_id=req.session_id,
-                message=step.message,
-                mode="flow",
-                options=step.options,
-                form_packet=form_packet,
-                current_step=step,
-                active_flow_id=session.flow_id,
-                department_id=session.department_id,
-                completed=session.completed
+                option_id=req.selected_option_id,
+                user_text=req.message
             )
+            if success and step:
+                citations = []
+                if session.flow_id == "tree_removal_flow":
+                    citations = [
+                        RagCitation(
+                            url="https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+                            title="Township of Edison Official Permit Flow Charts - Tree Removal Permit",
+                            category="Procedure/guideline",
+                            department_id="engineering",
+                            relevance_score=1.0,
+                            excerpt="Decision tree flowchart determining when a Tree Removal Permit is required, emergency removal protocols, and subdivision/demolition requirements (Page 3)."
+                        )
+                    ]
+                user_content = req.message if not req.selected_option_id else f"Selected option: {req.selected_option_id}"
+                history.append({"role": "user", "content": user_content})
+                history.append({"role": "assistant", "content": step.message})
+                return ChatResponse(
+                    session_id=req.session_id,
+                    message=step.message,
+                    mode="flow",
+                    options=step.options,
+                    form_packet=form_packet,
+                    citations=citations,
+                    current_step=step,
+                    active_flow_id=session.flow_id,
+                    department_id=session.department_id,
+                    completed=session.completed
+                )
 
     # Check if user explicitly asked to download or access an official form (with context awareness!)
     form_packet = rag_engine.match_official_form_packet(req.message, "engineering", history=history)
 
-    # Case 2: Intent detection for starting a flow (only if user explicitly says "start/apply flow")
+    # Case 2: Intent detection for starting a flow
     flow_match = rag_engine.detect_flow_intent(req.message, req.department_id)
     if flow_match and not form_packet and (not session or session.completed):
         dept_id, flow_id = flow_match
-        success, msg, step, _ = flow_engine.start_flow(req.session_id, dept_id, flow_id)
+        success, msg, step, _ = flow_engine.start_flow(
+            session_id=req.session_id,
+            department_id=dept_id,
+            flow_id=flow_id,
+            initial_user_text=req.message
+        )
         if success and step:
+            active_sess = flow_engine.get_session(req.session_id)
+            is_completed = active_sess.completed if active_sess else False
+            citations = []
+            if flow_id == "tree_removal_flow":
+                citations = [
+                    RagCitation(
+                        url="https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+                        title="Township of Edison Official Permit Flow Charts - Tree Removal Permit",
+                        category="Procedure/guideline",
+                        department_id="engineering",
+                        relevance_score=1.0,
+                        excerpt="Decision tree flowchart determining when a Tree Removal Permit is required, emergency removal protocols, and subdivision/demolition requirements (Page 3)."
+                    )
+                ]
             history.append({"role": "user", "content": req.message})
             history.append({"role": "assistant", "content": step.message})
             return ChatResponse(
@@ -307,10 +353,11 @@ def chat_endpoint(req: ChatRequest):
                 message=step.message,
                 mode="flow",
                 options=step.options,
+                citations=citations,
                 current_step=step,
                 active_flow_id=flow_id,
                 department_id=dept_id,
-                completed=False
+                completed=is_completed
             )
 
     # Case 3: Grounded Conversational RAG with Multi-turn History Context

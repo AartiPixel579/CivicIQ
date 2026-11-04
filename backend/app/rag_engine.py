@@ -54,15 +54,13 @@ class GroundedRagEngine:
         if any(k in text for k in [
             "apply for street opening", "start street opening", "apply for excavation",
             "start excavation", "need excavation permit", "street opening permit",
-            "street_opening_flow"
+            "road opening", "road-opening", "street opening", "pavement excavation",
+            "excavation permit", "street_opening_flow"
         ]):
             return ("engineering", "street_opening_flow")
 
-        # 2. Tree Removal Clearance & Permit
-        if any(k in text for k in [
-            "start tree removal", "apply for tree removal", "tree removal flow",
-            "tree_removal_flow"
-        ]):
+        # 2. Tree Removal Clearance & Permit Decision Flow (Page 3 of Permit Flow Charts)
+        if bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps|branch|branches)\b', text)) or "subdivision" in text:
             return ("engineering", "tree_removal_flow")
 
         # 3. Sewer Connection Charge Application
@@ -113,8 +111,16 @@ class GroundedRagEngine:
             for msg in history[-4:]:
                 context_text += " " + msg.get("content", "").lower()
 
+        # Check if query is about trees first to prevent history bleed and avoid hallucinating unverified forms
+        is_tree_query = bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps|branch|branches)\b', t))
+        if is_tree_query:
+            # Standalone Tree Removal application form is NOT verified on the official Document Center.
+            # Do NOT return a form packet or substitute an unrelated application.
+            return None
+
         # 1. Road Opening / Street Excavation
-        if any(w in context_text for w in ["road", "street", "opening", "excavation", "trench", "pavement", "curb cut", "dig"]):
+        is_road_explicit = any(w in t for w in ["road", "street", "opening", "excavat", "trench", "pavement", "curb cut", "dig"])
+        if is_road_explicit or any(w in context_text for w in ["road opening", "street opening", "excavat", "saw-cut", "pavement opening"]):
             return FormIssuanceDetails(
                 form_code="EDISON-DPW-ROADOPEN",
                 form_title="Edison Township Street Opening & Road Excavation Application",
@@ -167,33 +173,7 @@ class GroundedRagEngine:
                 lead_time="7 to 10 Business Days"
             )
 
-        # 3. Tree Removal
-        if any(w in context_text for w in ["tree", "removal", "clearance", "dbh", "forestry"]):
-            return FormIssuanceDetails(
-                form_code="EDISON-ENG-TREE",
-                form_title="Edison Township Tree Removal & Preservation Requirement Sheet",
-                form_file="ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-                pdf_download_url="/api/forms/engineering/ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-                department_id="engineering",
-                fill_in_instructions="1. Complete applicant and property details.\n2. Provide plot sketch showing tree locations to be removed.\n3. If emergency/hazardous, attach photos or arborist letter.\n4. Submit online via the official municipal portal at https://www.edisonnj.org/document_center/index.php.",
-                required_attachments=[
-                    "Site plot plan showing tree locations to be removed",
-                    "Photographic proof of dead/dying/hazardous tree condition (if emergency)",
-                    "Property owner certification"
-                ],
-                fee_info=FeeInfo(
-                    amount="$25 application review fee (waived for verified hazardous trees)",
-                    payment_methods="Check payable to 'Township of Edison' or online portal"
-                ),
-                submission_routing=SubmissionRouting(
-                    department="Department of Engineering",
-                    desk="Engineering Division",
-                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                ),
-                lead_time="5 to 7 Business Days"
-            )
-
-        # 4. General Engineering / Permit Application
+        # 3. General Engineering / Permit Application
         if any(w in context_text for w in ["permit", "construction", "building", "dwelling", "addition", "shed", "deck", "pool", "fence", "engineering", "zoning"]):
             return FormIssuanceDetails(
                 form_code="EDISON-ENG-PERMIT",
@@ -357,41 +337,13 @@ class GroundedRagEngine:
             if is_valid_hazard:
                 msg = (
                     "Thank you for providing the details. Because this situation involves an imminent danger (a dead, dying, or structurally hazardous tree):\n\n"
-                    "According to the official **Edison Township Tree Removal Flow Chart**:\n"
-                    "1. **Document Immediate Evidence**: Take photographic proof showing the tree's hazardous condition, or obtain a certified letter from a licensed arborist/forester confirming the tree is dead/dying and presents an eminent danger.\n"
+                    "According to the official **Edison Township Permit Flow Charts** (Page 3):\n"
+                    "1. **Document Immediate Evidence**: Take photographic proof showing the tree's hazardous condition, or obtain a certified letter from a licensed arborist/forester confirming the tree is dead/dying and presents an imminent danger.\n"
                     "2. **Immediate Removal Authorized**: You may proceed with removing the tree immediately to safeguard life and property.\n"
-                    "3. **Concurrent Permit Filing**: You must submit your official permit application **concurrent to (or immediately following) the tree removal**, along with your photographic proof.\n\n"
-                    "Here is the official application form for filing your permit:"
+                    "3. **Concurrent Permit Filing**: You must submit your official permit application concurrent to (or immediately following) the tree removal along with your proof.\n\n"
+                    "*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*"
                 )
-                form_packet = FormIssuanceDetails(
-                    form_code="EDISON-ENG-TREE",
-                    form_title="Township of Edison Tree Removal Clearance & Permit Form",
-                    form_file="ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-                    pdf_download_url="/api/forms/engineering/ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-                    department_id="engineering",
-                    fill_in_instructions=(
-                        "1. Enter property owner details, site address, and parcel Block/Lot.\n"
-                        "2. Note 'Emergency Tree Removal' clearly on the application header.\n"
-                        "3. Attach photographic proof of the dead, dying, or hazardous tree (or arborist certification).\n"
-                        "4. Submit online via the official municipal portal at https://www.edisonnj.org/document_center/index.php."
-                    ),
-                    required_attachments=[
-                        "Photographic evidence showing dead/dying condition or imminent hazard",
-                        "Certified letter from licensed arborist/forester (if available)",
-                        "Property sketch showing location of removed tree"
-                    ],
-                    fee_info=FeeInfo(
-                        amount="Fee waived for verified hazardous/dead trees",
-                        payment_methods="Online submission via municipal portal"
-                    ),
-                    submission_routing=SubmissionRouting(
-                        department="Department of Engineering",
-                        desk="Engineering Division",
-                        digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                    ),
-                    lead_time="Concurrent Filing / Immediate Safety Clearance"
-                )
-                return (msg, form_packet)
+                return (msg, None)
             else:
                 msg = (
                     "Based on your description, this situation does not appear to involve an imminent safety hazard or dead/dying tree.\n\n"
@@ -406,46 +358,18 @@ class GroundedRagEngine:
         if "part of a subdivision" in last_bot_msg:
             if re.search(r'\b(no|nope|not|negative|never)\b', q):
                 msg = (
-                    "Under the official **Edison Township Tree Removal Flow Chart**, because this project is not an emergency and is NOT "
+                    "Under the official **Edison Township Permit Flow Charts** (Page 3), because you are not removing trees and your project is NOT "
                     "part of a subdivision or demolition permit from Code, **a Tree Removal Permit is NOT required**.\n\n"
                     "For more municipal guidance or document references, please visit https://www.edisonnj.org/document_center/index.php."
                 )
                 return (msg, None)
             else:
                 msg = (
-                    "Under the official **Edison Township Tree Removal Flow Chart**, because your project is part of a subdivision "
+                    "Under the official **Edison Township Permit Flow Charts** (Page 3), because your project is part of a subdivision "
                     "or involves a demolition permit from Code Enforcement, **a Tree Removal Permit is required** before removing any trees.\n\n"
-                    "Here is the official application form to proceed:"
+                    "*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*"
                 )
-                form_packet = FormIssuanceDetails(
-                    form_code="EDISON-ENG-TREE",
-                    form_title="Township of Edison Tree Removal Clearance & Permit Form",
-                    form_file="ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-                    pdf_download_url="/api/forms/engineering/ZONING_PERMIT_REQUIREMENT_SHEET.pdf",
-                    department_id="engineering",
-                    fill_in_instructions=(
-                        "1. Complete applicant and property details.\n"
-                        "2. Attach subdivision approval or demolition permit reference.\n"
-                        "3. Attach tree removal site plan.\n"
-                        "4. Submit online via https://www.edisonnj.org/document_center/index.php."
-                    ),
-                    required_attachments=[
-                        "Site plan showing all trees proposed for removal and replacement plan",
-                        "Copy of subdivision approval or Code Enforcement demolition permit",
-                        "Application review fee"
-                    ],
-                    fee_info=FeeInfo(
-                        amount="Per municipal fee schedule",
-                        payment_methods="Online portal or check payable to 'Township of Edison'"
-                    ),
-                    submission_routing=SubmissionRouting(
-                        department="Department of Engineering",
-                        desk="Engineering Division",
-                        digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                    ),
-                    lead_time="5 to 7 Business Days"
-                )
-                return (msg, form_packet)
+                return (msg, None)
 
         return None
 

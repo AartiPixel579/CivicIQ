@@ -20,8 +20,6 @@ It helps residents navigate municipal procedures, permits, and engineering regul
 ### 1. Free-First LLM Architecture (Zero Paid API Lock-In)
 - **Primary Provider**: **Google Gemini** (`gemini-1.5-flash` via official SDK + REST fallback).
 - **First Backup**: **Groq API** (`llama-3.3-70b-versatile` with low-latency inference).
-- **Second Backup**: **OpenRouter** with strict free-model enforcement (`:free` suffix guard). Blocks paid models to prevent surprise billing.
-- **Offline / Local Fallback**: **Deterministic Grounded Retrieval Synthesis** produces verified responses from municipal excerpts even when all external LLM APIs are unreachable.
 
 ### 2. Grounded Question Answering (RAG)
 - Answers queries using official Edison Township Engineering documentation.
@@ -137,45 +135,8 @@ python -m unittest backend.tests.test_civiciq_full_suite
 python -m unittest discover -s backend/tests -p "test_*.py"
 ```
 
-### Verified Test Matrix (20 Specifications):
-| # | Test Requirement | Implementation | Status |
-|---|---|---|---|
-| 1 | Gemini Primary Provider | Configured & selected by default in `LLMProviderManager` | ✅ PASS |
-| 2 | Groq Fallback | Automatically invoked when Gemini encounters quota/errors | ✅ PASS |
-| 3 | OpenRouter Fallback | Seamlessly invoked when Gemini and Groq fail | ✅ PASS |
-| 4 | Deterministic Grounded Synthesis | Fallback answer generated locally when all free LLMs fail | ✅ PASS |
-| 5 | OpenRouter Free Guard | Paid models without `:free` suffix rejected with `ValueError` | ✅ PASS |
-| 6 | Form Identification: Application | Road opening identified as application with conversational fill | ✅ PASS |
-| 7 | Form Identification: Reference Doc | Schedule A yard requirements marked as reference document | ✅ PASS |
-| 8 | Form Identification: Fee Schedule | Zoning fee schedule marked as informational reference | ✅ PASS |
-| 9 | Form Identification: Flowchart | Permit Flow Charts marked as reference document | ✅ PASS |
-| 10 | Conversational Form: Start | Session initialized at Step 1 with first question prompt | ✅ PASS |
-| 11 | Conversational Form: Sequence | Sequential progression: name $\to$ phone $\to$ email $\to$ address | ✅ PASS |
-| 12 | Input Validation: Email | Rejects invalid email (`not-an-email`) with validation notice | ✅ PASS |
-| 13 | Input Validation: Phone | Rejects malformed phone (`123-abc`) with 10-digit telephone notice | ✅ PASS |
-| 14 | Edit Previous Answer | `edit [field]` updates answer and allows resuming | ✅ PASS |
-| 15 | Review Summary | Comprehensive summary presented before draft generation | ✅ PASS |
-| 16 | PDF Generation: Answers | Generates valid PDF populated with citizen answers | ✅ PASS |
-| 17 | Blank Ink Signature | Signature line explicitly blank with manual ink signing notice | ✅ PASS |
-| 18 | Watermark Banner | Unsubmitted municipal draft red watermark banner applied | ✅ PASS |
-| 19 | Secure PDF Serving | Session-authenticated download URL (`/api/form-session/download/...`) | ✅ PASS |
-| 20 | Session Isolation | Answers from Resident A never leak into Resident B's session | ✅ PASS |
-
 ---
 
-## 📂 Department Assets & Document Registry
-
-All documents are officially retrieved from **Edison Township Document Center**:
-- `RoadOpenApp.pdf`: Street Opening & Pavement Excavation Application
-- `Zoning_Permit_Application_Edison.pdf`: Residential Construction & Zoning Permit Application
-- `Sewer_Connection_Charge_Applications.pdf`: Sewer Utility Connection & Tap Application
-- `Permit_Flow_Charts.pdf`: Official Permit Flow Charts & Tree Removal Guidance
-- `Schedule_A_Yard_Requirements.pdf`: Bulk Yard Dimensions & Setback Table
-- `Zoning_Permit_Fees_2022.pdf`: Official Fee Schedule (Ordinance O.2158-2022)
-- `Pool_Setbacks.pdf` & `Deck_Coverage.pdf`: Residential Construction Reference Sheets
-- `Minor_Subdivision_Packet_2024.pdf`: Minor Subdivision Checklist & Application
-
----
 
 ## 🔒 Security & Compliance
 

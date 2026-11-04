@@ -214,12 +214,17 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
     # 9. Form Identification: Flowchart correctly identified (NOT application)
     # --------------------------------------------------------------------------
     def test_09_form_identification_flowchart(self):
-        """Requirement 9: Identifies Permit Flow Charts as reference guide, NOT application"""
-        rec = form_matcher.match_form("Can I see the permit flow chart document?")
-        self.assertIsNotNone(rec)
-        self.assertEqual(rec.form.form_id, "permit_flow_charts")
-        self.assertFalse(rec.is_application_form)
-        self.assertFalse(rec.offer_conversational_fill)
+        """Requirement 9: Identifies Permit Flow Charts as internal reference guide, filtered from resident recommendations"""
+        # Public recommendation filters out internal flow charts
+        rec_public = form_matcher.match_form("Can I see the permit flow chart document?")
+        self.assertIsNone(rec_public)
+
+        # Internal lookup correctly resolves internal flow chart metadata
+        rec_internal = form_matcher.match_form("Can I see the permit flow chart document?", include_internal=True)
+        self.assertIsNotNone(rec_internal)
+        self.assertEqual(rec_internal.form.form_id, "permit_flow_charts")
+        self.assertFalse(rec_internal.is_application_form)
+        self.assertEqual(rec_internal.form.visibility, "internal")
 
     # --------------------------------------------------------------------------
     # 10. Conversational Form-Filling: Session starts with first question

@@ -10,7 +10,7 @@ It helps residents navigate municipal procedures, permits, and engineering regul
 
 - **Application Name**: `CivicIQ`
 - **Official Tagline**: `Your Edison Township Buddy`
-- **Welcome Prompt**: `How can **"CivicIQ"** help you today?` (visually bolded)
+- **Welcome Prompt**: `How can **CivicIQ** help you today?` (visually bolded)
 - **Official Portal**: [https://www.edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php)
 
 ---

@@ -11,7 +11,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Application & Municipality Metadata
 APP_NAME = "CivicIQ"
-APP_TAGLINE = "Mushkil Your Edison Township Buddy"
+APP_TAGLINE = "Your Edison Township Buddy"
 APP_VERSION = "2.2.0"
 MUNICIPALITY_NAME = "Township of Edison, New Jersey"
 OFFICIAL_PORTAL_URL = "https://www.edisonnj.org/document_center/index.php"

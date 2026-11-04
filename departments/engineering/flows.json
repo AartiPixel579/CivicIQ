@@ -359,34 +359,105 @@
         },
         "step_emergency_protocol_result": {
           "id": "step_emergency_protocol_result",
-          "type": "procedure_result",
+          "type": "form_issuance",
           "title": "Emergency Tree Removal Protocol",
-          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n1. **Take Documentation Proof**: Take photographic proof OR obtain a certified letter from a licensed arborist/forester stating that the tree is dead/dying and is an imminent danger.\n2. **Remove the Tree Immediately**: For safety, you are authorized to remove the tree without waiting for advance approval.\n3. **Concurrent Permit Submission**: You must submit for the permit concurrent to (or immediately following) the tree removal along with your proof.\n\n*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*",
-          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "message": "### Emergency Tree Removal Procedure\nBecause this involves an emergency situation (a dead, dying, or structurally hazardous tree posing an imminent danger):\n1. **Immediate Removal Authorized**: You are authorized to proceed with removing the tree immediately to safeguard life and property.\n2. **Document Required Proof**: Take clear colored photographs showing the dead/dying/hazardous condition OR obtain a certified letter from a licensed arborist/forester stating the tree is dead/dying and poses an imminent danger.\n3. **Concurrent Permit Submission**: You must submit your official permit application concurrently with (or immediately following) the tree removal along with your proof.\n\n### Important Requirements & Supporting Documents\n- **Survey or Tax Map**: Draw property lines and mark existing trees with circles (and diameters noted); mark tree(s) to be removed with an X.\n- **Proof of Hazard**: Colored photographs of the hazardous tree condition OR certified letter from licensed arborist/forester.\n- **Written Reason**: Brief written statement describing the reason for removal.\n- **Ribbon / Paint**: Mark the tree or stump on site with ribbon or paint for municipal inspection.\n- **Filing Fee**: $25.00 for single residential lot (fee is waived for Senior Citizens age 62+ with ID).\n\n### Next Steps\n1. Safely remove the hazardous tree.\n2. Download and complete the official **Township of Edison Tree Permit Application** below.\n3. Submit the completed application, proof of hazard, and fee to the Division of Engineering counter (100 Municipal Blvd) or via the online Document Center.\n\n---\n### Relevant Official Documents & Forms\n- **Tree Removal Permit Application** – Official Township application form (`3.23.21 tree permit application.pdf`).",
+          "form_code": "EDISON-ENG-TRP",
+          "form_title": "Township of Edison Tree Permit Application (Removal / Replacement / Conservation)",
+          "form_file": "3.23.21 tree permit application.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Complete Property Owner data, Subject Permit Site Address, Block, and Lot.\n2. Note Number of Trees On-Site and Number of Trees to be Removed.\n3. Check appropriate fee category ($25 for single residential lot; waived for senior citizens age 62+ with ID).\n4. Attach colored photos of dead/dying tree OR arborist certification, and Survey/Tax Map sketch.\n5. Mark tree on site with ribbon or paint for inspection.\n6. Submit concurrently with removal to the Division of Engineering.",
+          "required_attachments": [
+            "Survey or Tax Map sketch showing property lines, existing trees with diameter, and removal trees marked with an X",
+            "Colored photographs of dead/dying/hazard tree condition OR certified statement from licensed arborist/forester",
+            "Written statement detailing the reason for removal (Township Ordinance 25-8.1a6)",
+            "Payment of $25 fee (check/card payable to 'Township of Edison') or Senior ID (age 62+)"
+          ],
+          "fee_info": {
+            "amount": "$25.00 for single residential lot (Waived for Senior Citizens age 62+ with ID; $200 with Board approval / subdivision)",
+            "payment_methods": "Check or Credit Card payable to 'Township of Edison'"
+          },
+          "submission_routing": {
+            "department": "Township of Edison Department of Planning and Engineering",
+            "desk": "Division of Engineering, Edison Municipal Complex",
+            "building_address": "100 Municipal Boulevard, Edison, NJ 08817",
+            "hours": "Monday – Friday: 8:00 AM – 4:30 PM",
+            "contact_phone": "(732) 248-7242",
+            "contact_email": "engineering@edisonnj.gov",
+            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
+          },
+          "lead_time": "Concurrent filing / immediate safety removal",
           "options": []
         },
         "step_planned_permit_required_result": {
           "id": "step_planned_permit_required_result",
-          "type": "procedure_result",
+          "type": "form_issuance",
           "title": "Tree Removal Permit Required",
-          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n• **A Tree Removal Permit is REQUIRED** before removing the tree.\n\n*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*",
-          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "message": "### Tree Removal Procedure\nUnder Township of Edison Tree Protection Ordinance (Chapter 25-8), a **Tree Removal Permit is REQUIRED** before removing one or more mature trees (trunk diameter of 4 inches or greater at breast height).\n\n### Important Requirements & Supporting Documents\n- **Survey or Tax Map**: Property sketch showing house location, existing trees circled with trunk diameter, and proposed removal trees marked with an X.\n- **Written Statement**: Written explanation detailing reasons for removal (Ordinance 25-8.1a6).\n- **Field Marking**: Trees proposed for removal must be visibly marked on site with ribbon or paint for municipal inspection.\n- **Tree Replacement Plan**: Required if removing more than 25% of the trees on the property.\n- **Filing Fee**: $25.00 for single residential lots (waived for senior citizens age 62+ with ID).\n\n### Next Steps\n1. Download the official **Township of Edison Tree Permit Application** below.\n2. Complete property owner details, tree counts, and attach survey sketch.\n3. Submit application and fee to the Division of Engineering counter (100 Municipal Blvd) or online.\n4. Await municipal inspection sign-off prior to tree removal.\n\n---\n### Relevant Official Documents & Forms\n- **Tree Removal Permit Application** – Official Township application form (`3.23.21 tree permit application.pdf`).",
+          "form_code": "EDISON-ENG-TRP",
+          "form_title": "Township of Edison Tree Permit Application (Removal / Replacement / Conservation)",
+          "form_file": "3.23.21 tree permit application.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Complete Property Owner data, Subject Permit Site Address, Block, and Lot.\n2. Note Number of Trees On-Site and Number of Trees to be Removed.\n3. Check appropriate fee category ($25 for single residential lot; waived for senior citizens age 62+ with ID).\n4. Attach Survey or Tax Map sketch showing tree locations and diameters.\n5. Visibly mark trees on site with ribbon or paint for municipal inspector.\n6. Submit application to the Division of Engineering.",
+          "required_attachments": [
+            "Survey or Tax Map sketch showing property lines, existing trees with diameter, and removal trees marked with an X",
+            "Written statement detailing the reason for removal (Township Ordinance 25-8.1a6)",
+            "Tree Replacement Plan (if removing more than 25% of trees on site)",
+            "Payment of $25 fee (payable to 'Township of Edison') or Senior ID (age 62+)"
+          ],
+          "fee_info": {
+            "amount": "$25.00 for single residential lot (Waived for Senior Citizens age 62+ with ID; $200 with Board approval / subdivision)",
+            "payment_methods": "Check or Credit Card payable to 'Township of Edison'"
+          },
+          "submission_routing": {
+            "department": "Township of Edison Department of Planning and Engineering",
+            "desk": "Division of Engineering, Edison Municipal Complex",
+            "building_address": "100 Municipal Boulevard, Edison, NJ 08817",
+            "hours": "Monday – Friday: 8:00 AM – 4:30 PM",
+            "contact_phone": "(732) 248-7242",
+            "contact_email": "engineering@edisonnj.gov",
+            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
+          },
+          "lead_time": "5 to 10 business days for field inspection sign-off",
           "options": []
         },
         "step_subdivision_permit_required_result": {
           "id": "step_subdivision_permit_required_result",
-          "type": "procedure_result",
+          "type": "form_issuance",
           "title": "Tree Removal Permit Required (Subdivision / Demolition)",
-          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n• Because this project is part of a subdivision or requires a demolition permit from Code Enforcement, **a Tree Removal Permit is REQUIRED**.\n\n*(Note: An official standalone Tree Removal application form has not yet been verified on the official Edison Township Document Center. Please visit https://www.edisonnj.org/document_center/index.php for official updates.)*",
-          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "message": "### Tree Removal Procedure (Subdivision / Demolition)\nUnder Township of Edison Code (Chapter 25-8), because your project is part of a subdivision or requires a demolition permit from Code Enforcement, an official **Tree Removal Permit is REQUIRED** before tree removal or demolition can proceed.\n\n### Important Requirements & Supporting Documents\n- **Board Approval Resolution**: Copy of Planning Board or Zoning Board resolution approving subdivision/site plan development.\n- **Tree Conservation Plan**: Copy of approved Tree Conservation / Replacement Plan.\n- **Sealed Plot Plan**: Three (3) copies of sealed plot plan with replacement schedule in accordance with Chapter 12.16.150A.\n- **Permit Fee**: $200.00 in conjunction with Board approval / subdivision; $25.00 for single lot with demolition permit.\n\n### Next Steps\n1. Download the official **Township of Edison Tree Permit Application** below.\n2. Complete application with contractor details and attach board approval resolution.\n3. Submit application packet to the Division of Engineering counter (100 Municipal Blvd).\n\n---\n### Relevant Official Documents & Forms\n- **Tree Removal Permit Application** – Official Township application form (`3.23.21 tree permit application.pdf`).",
+          "form_code": "EDISON-ENG-TRP",
+          "form_title": "Township of Edison Tree Permit Application (Removal / Replacement / Conservation)",
+          "form_file": "3.23.21 tree permit application.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Complete Property Owner data, Subject Permit Site Address, Block, and Lot.\n2. Attach copy of Planning/Zoning Board Resolution and Tree Conservation/Replacement Plan.\n3. Attach 3 copies of sealed plot plan with replacement schedule.\n4. Submit application packet to the Division of Engineering.",
+          "required_attachments": [
+            "Copy of Planning Board / Zoning Board approval resolution",
+            "Copy of Tree Conservation / Replacement Plan",
+            "Three (3) copies of sealed plot plan with replacement schedule",
+            "Permit fee ($200.00 for subdivision / site plan; $25.00 for single lot with demolition permit)"
+          ],
+          "fee_info": {
+            "amount": "$200.00 (in conjunction with Board approval / subdivision) or $25.00 (single lot with demolition permit)",
+            "payment_methods": "Check or Credit Card payable to 'Township of Edison'"
+          },
+          "submission_routing": {
+            "department": "Township of Edison Department of Planning and Engineering",
+            "desk": "Division of Engineering, Edison Municipal Complex",
+            "building_address": "100 Municipal Boulevard, Edison, NJ 08817",
+            "hours": "Monday – Friday: 8:00 AM – 4:30 PM",
+            "contact_phone": "(732) 248-7242",
+            "contact_email": "engineering@edisonnj.gov",
+            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
+          },
+          "lead_time": "10 to 14 business days",
           "options": []
         },
         "step_permit_not_required_result": {
           "id": "step_permit_not_required_result",
           "type": "procedure_result",
           "title": "Tree Removal Permit NOT Required",
-          "message": "According to the official **Township of Edison Permit Flow Charts** (Page 3):\n\n• Because you are not removing trees and your project is not part of a subdivision or demolition permit from Code Enforcement, **a Tree Removal Permit is NOT required**.",
-          "official_source_url": "https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
+          "message": "### Applicable Determination\nUnder Township of Edison regulations, because you are not removing any trees and your project is not part of a subdivision or demolition permit from Code Enforcement, **a Tree Removal Permit is NOT required**.\n\n### Important Information\n- No tree removal application filing or municipal permit fee is required for your project.\n- If your project scope changes in the future to include tree removal, site disturbance, or road excavation, please check back for applicable permits.\n\n### Next Steps\nYou may proceed with your planned project without a tree removal permit.",
           "options": []
         }
       }
@@ -469,6 +540,232 @@
             "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
           },
           "lead_time": "10 to 14 business days for capacity allocation review"
+        }
+      }
+    },
+    {
+      "id": "soil_import_export_flow",
+      "title": "Edison Township Soil Import / Export Permit Decision Flow",
+      "code": "FLOW-EDISON-SOIL",
+      "category": "Soil Movement & Earth Disturbance",
+      "description": "Official municipal decision tree for importing or exporting soil in Edison Township based on Page 4 of Permit Flow Charts and Chapter 31 of Township Code.",
+      "initial_step": "step_soil_direction_check",
+      "steps": {
+        "step_soil_direction_check": {
+          "id": "step_soil_direction_check",
+          "type": "question",
+          "title": "Soil Movement Direction",
+          "message": "I can help you understand the Township of Edison's soil regulations.\n\nFirst, **are you planning to bring soil onto your property (Soil Import) or remove soil from your property (Soil Export)?**",
+          "help_text": "Edison Township regulates soil importation and exportation under Chapter 31 to prevent flooding, erosion, and contamination.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "opt_soil_import",
+              "label": "Importing Soil (Bringing onto property)",
+              "description": "Bringing clean fill or topsoil to your site",
+              "next_step": "step_soil_import_volume_check"
+            },
+            {
+              "id": "opt_soil_export",
+              "label": "Exporting Soil (Removing from property)",
+              "description": "Hauling excess excavated soil or fill away from your site",
+              "next_step": "step_soil_export_volume_check"
+            }
+          ]
+        },
+        "step_soil_import_volume_check": {
+          "id": "step_soil_import_volume_check",
+          "type": "question",
+          "title": "Soil Import Volume Threshold",
+          "message": "Approximately how much soil are you planning to import? **Is it 10 cubic yards or more?**",
+          "help_text": "One standard dump truck typically carries approximately 10 to 14 cubic yards of soil.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "opt_import_volume_10_or_more",
+              "label": "Yes — 10 cubic yards or more",
+              "description": "Major soil importation (permit required)",
+              "next_step": "step_soil_import_permit_required_result"
+            },
+            {
+              "id": "opt_import_volume_under_10",
+              "label": "No — Less than 10 cubic yards",
+              "description": "Minor soil addition under municipal threshold",
+              "next_step": "step_soil_permit_not_required_result"
+            }
+          ]
+        },
+        "step_soil_export_volume_check": {
+          "id": "step_soil_export_volume_check",
+          "type": "question",
+          "title": "Soil Export Volume Threshold",
+          "message": "Approximately how much soil are you planning to export? **Is it 10 cubic yards or more?**",
+          "help_text": "Excavation for foundations, in-ground pools, or major leveling often exceeds 10 cubic yards.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "opt_export_volume_10_or_more",
+              "label": "Yes — 10 cubic yards or more",
+              "description": "Major soil removal/hauling (permit required)",
+              "next_step": "step_soil_export_permit_required_result"
+            },
+            {
+              "id": "opt_export_volume_under_10",
+              "label": "No — Less than 10 cubic yards",
+              "description": "Minor soil removal under municipal threshold",
+              "next_step": "step_soil_permit_not_required_result"
+            }
+          ]
+        },
+        "step_soil_import_permit_required_result": {
+          "id": "step_soil_import_permit_required_result",
+          "type": "form_issuance",
+          "title": "Soil Import Permit Required",
+          "message": "### 1. Applicable Procedure\nBecause you are importing 10 cubic yards or more of soil onto your property in Edison Township, a **Soil Importation Permit** is required under municipal regulations prior to bringing any fill onto the site.\n\n### 2. Important Requirements & Supporting Documents\n- **Certified Clean Fill Lab Analysis**: Chemical laboratory certification verifying clean fill from the source site.\n- **Property Survey & Grading Plan**: Topographical survey showing proposed fill placement and grading contours.\n- **Designated Haul Route**: Approved truck haul route through Edison Township.\n- **Filing Fee & Engineering Escrow**: Municipal review fee and inspection escrow deposit.\n\n### 3. Next Steps for Resident\n1. Download and complete the official **Township of Edison Soil Importation Permit Application** below.\n2. Obtain clean fill certification documentation from your supplier.\n3. Prepare a grading sketch or survey showing where soil will be placed.\n4. Submit the completed application and attachments to the Division of Engineering.\n5. Wait for engineering review and permit issuance before transporting soil.\n\n### Relevant Official Documents & Forms\n- [Township of Edison Soil Importation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Importation_Appl.pdf)",
+          "form_code": "EDISON-ENG-SOIL-IMP",
+          "form_title": "Township of Edison Soil Importation Permit Application",
+          "form_file": "Forms_Soil_Importation_Appl.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Enter applicant, property owner, and contractor details.\n2. Detail source of fill and attach clean fill lab certification.\n3. Attach property survey showing proposed grading.\n4. Submit to Division of Engineering.",
+          "required_attachments": [
+            "Certified laboratory clean fill analysis",
+            "Property survey showing proposed fill placement and grading contours",
+            "Designated truck haul route plan",
+            "Soil importation review fee and engineering escrow deposit"
+          ],
+          "fee_info": {
+            "amount": "Standard municipal soil review fee and engineering escrow deposit",
+            "payment_methods": "Check payable to 'Township of Edison'"
+          },
+          "submission_routing": {
+            "department": "Township of Edison Department of Planning and Engineering",
+            "desk": "Division of Engineering, Edison Municipal Complex",
+            "building_address": "100 Municipal Boulevard, Edison, NJ 08817",
+            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
+          },
+          "lead_time": "7 to 10 business days"
+        },
+        "step_soil_export_permit_required_result": {
+          "id": "step_soil_export_permit_required_result",
+          "type": "form_issuance",
+          "title": "Soil Export Permit Required",
+          "message": "### 1. Applicable Procedure\nBecause you are exporting 10 cubic yards or more of soil from your property in Edison Township, a **Soil Exportation Permit** is required under municipal regulations prior to removing soil from the site.\n\n### 2. Important Requirements & Supporting Documents\n- **Topographical Survey with Cut/Fill Calculations**: Prepared and certified by a NJ licensed professional engineer or surveyor.\n- **Soil Erosion & Sediment Control Certification**: Measures to prevent runoff during excavation.\n- **Designated Truck Haul Route**: Specific route through township roadways.\n- **Filing Fee & Performance Guarantee**: Application fee and restoration guarantee bond.\n\n### 3. Next Steps for Resident\n1. Download and complete the official **Township of Edison Soil Exportation Permit Application** below.\n2. Coordinate with your engineer/contractor to prepare the cut/fill calculations and haul route.\n3. Submit the completed application and attachments to the Division of Engineering.\n4. Await engineering review and permit issuance before hauling soil off-site.\n\n### Relevant Official Documents & Forms\n- [Township of Edison Soil Exportation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Exportation_App.pdf)",
+          "form_code": "EDISON-ENG-SOIL-EXP",
+          "form_title": "Township of Edison Soil Exportation Permit Application",
+          "form_file": "Forms_Soil_Exportation_App.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Enter parcel details and volume of soil to be removed in cubic yards.\n2. Attach topographical survey and cut/fill cross-sections.\n3. Detail truck route through Edison.\n4. Submit to Division of Engineering.",
+          "required_attachments": [
+            "Topographical survey with cut/fill calculations by NJ licensed engineer/surveyor",
+            "Soil erosion and sediment control certification",
+            "Truck haul route plan",
+            "Filing fee and restoration bond"
+          ],
+          "fee_info": {
+            "amount": "Standard municipal soil exportation fee schedule",
+            "payment_methods": "Check payable to 'Township of Edison'"
+          },
+          "submission_routing": {
+            "department": "Township of Edison Department of Planning and Engineering",
+            "desk": "Division of Engineering, Edison Municipal Complex",
+            "building_address": "100 Municipal Boulevard, Edison, NJ 08817",
+            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
+          },
+          "lead_time": "7 to 10 business days"
+        },
+        "step_soil_permit_not_required_result": {
+          "id": "step_soil_permit_not_required_result",
+          "type": "disqualification",
+          "title": "Soil Permit Not Required",
+          "message": "### 1. Applicable Procedure\nUnder official Township of Edison engineering guidelines, because your project involves **less than 10 cubic yards of soil**, a municipal Soil Import / Export Permit is **NOT required**.\n\n### 2. Important Requirements & Environmental Best Practices\n- **No Permit or Fee**: No municipal soil permit application, review fee, or escrow deposit is required for quantities under 10 cubic yards.\n- **Drainage Protection**: When placing soil, ensure that grading does not alter natural drainage patterns or direct stormwater runoff onto neighboring properties.\n- **Ground Disturbance Check**: If your project also involves major site grading (disturbing 1,250 sq.ft. or more) or new impervious coverage (500 sq.ft. or more), an engineering Site Improvement review may be required.\n\n### 3. Next Steps for Resident\nYou may proceed with your project without filing a soil permit application. If you have additional engineering or zoning questions, visit https://www.edisonnj.org/document_center/index.php."
+        }
+      }
+    },
+    {
+      "id": "site_improvement_flow",
+      "title": "Edison Township Site Improvement Permit Decision Flow",
+      "code": "FLOW-EDISON-SIP",
+      "category": "Site Improvement & Drainage",
+      "description": "Official municipal decision tree for site improvements, grading, disturbance, and impervious coverage based on Page 5 of Permit Flow Charts.",
+      "initial_step": "step_site_disturbance_check",
+      "steps": {
+        "step_site_disturbance_check": {
+          "id": "step_site_disturbance_check",
+          "type": "question",
+          "title": "Site Disturbance & Coverage Check",
+          "message": "I can help you determine if your project requires a Township of Edison Site Improvement Permit (SIP).\n\n**Does your proposed work include more than 500 sq.ft. of new impervious coverage, OR 1,250 sq.ft. of ground disturbance?**",
+          "help_text": "Impervious coverage includes buildings, driveways, patios, and paved walkways.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "opt_disturbance_yes",
+              "label": "Yes — Over 500 s.f. impervious OR over 1,250 s.f. disturbance",
+              "description": "Work exceeds threshold (permit required)",
+              "next_step": "step_site_permit_required_result"
+            },
+            {
+              "id": "opt_disturbance_no",
+              "label": "No — Under 500 s.f. impervious AND under 1,250 s.f. disturbance",
+              "description": "Work is under the primary disturbance threshold",
+              "next_step": "step_site_drainage_check"
+            }
+          ]
+        },
+        "step_site_drainage_check": {
+          "id": "step_site_drainage_check",
+          "type": "question",
+          "title": "Drainage & Grading Check",
+          "message": "Although your project is under the primary disturbance threshold: **Does your project include any drainage improvements, significant grading changes, or stormwater runoff alterations?**",
+          "help_text": "Grading changes that direct water toward adjacent properties require engineering review.",
+          "is_mandatory_prerequisite": true,
+          "options": [
+            {
+              "id": "opt_drainage_yes",
+              "label": "Yes — Includes drainage improvements or grading",
+              "description": "Engineering review required for drainage",
+              "next_step": "step_site_permit_required_result"
+            },
+            {
+              "id": "opt_drainage_no",
+              "label": "No — No drainage improvements or grading changes",
+              "description": "No significant drainage impact",
+              "next_step": "step_site_permit_not_required_result"
+            }
+          ]
+        },
+        "step_site_permit_required_result": {
+          "id": "step_site_permit_required_result",
+          "type": "form_issuance",
+          "title": "Site Improvement Permit Required",
+          "message": "### 1. Applicable Procedure\nUnder official Edison Township engineering regulations, your project requires an approved **Site Improvement Permit (SIP)** with Checklist prior to commencing site work, grading, or ground disturbance.\n\n### 2. Important Requirements & Supporting Documents\n- **Site Improvement Plan**: Two (2) signed and sealed copies of engineering site plans prepared by a NJ licensed professional engineer.\n- **Completed 25-Point Checklist**: Official municipal Site Improvement Checklist completed by applicant or engineer.\n- **Stormwater Management Report**: Runoff calculations and drainage design.\n- **Review & Inspection Escrow**: Engineering review fee and inspection escrow deposit.\n\n### 3. Next Steps for Resident\n1. Download and complete the official **Township of Edison Site Improvement Permit Application with Checklist** below.\n2. Work with your licensed civil engineer to prepare sealed site improvement plans.\n3. Submit the completed application, checklist, plans, and review fees to the Division of Engineering.\n4. Await engineering review and permit issuance before commencing any excavation or grading.\n\n### Relevant Official Documents & Forms\n- [Township of Edison Site Improvement Permit Application with Checklist (PDF)](/api/forms/engineering/SIP_Application.pdf)",
+          "form_code": "EDISON-ENG-SIP",
+          "form_title": "Township of Edison Site Improvement Permit Application with Checklist",
+          "form_file": "SIP_Application.pdf",
+          "department_id": "engineering",
+          "fill_in_instructions": "1. Complete owner, contractor, and design engineer information.\n2. Complete Site Improvement Checklist (Items 1-25).\n3. Attach 2 signed/sealed engineering site plans.\n4. Submit to Division of Engineering.",
+          "required_attachments": [
+            "Two (2) signed and sealed copies of Site Improvement Engineering Plan",
+            "Completed Site Improvement Checklist",
+            "Stormwater management and runoff calculation report",
+            "Engineering review fee and inspection escrow deposit"
+          ],
+          "fee_info": {
+            "amount": "Engineering review fee per municipal rate schedule",
+            "payment_methods": "Check payable to 'Township of Edison'"
+          },
+          "submission_routing": {
+            "department": "Township of Edison Department of Planning and Engineering",
+            "desk": "Division of Engineering, Edison Municipal Complex",
+            "building_address": "100 Municipal Boulevard, Edison, NJ 08817",
+            "digital_upload_url": "https://www.edisonnj.org/document_center/index.php"
+          },
+          "lead_time": "10 to 14 business days"
+        },
+        "step_site_permit_not_required_result": {
+          "id": "step_site_permit_not_required_result",
+          "type": "disqualification",
+          "title": "Site Improvement Permit May Not Be Required",
+          "message": "### 1. Applicable Procedure\nUnder official Township of Edison guidelines, a **Site Improvement Permit may not be required** for your project because your work does not exceed 500 sq.ft. of impervious coverage, does not exceed 1,250 sq.ft. of disturbance, and does not alter drainage or grading.\n\n### 2. Important Requirements & Next Steps\n- **Final Determination**: A final determination will be made when your standard Zoning Permit or Building Permit application is reviewed by the township.\n- If your project scope expands to exceed coverage thresholds or includes site grading, a Site Improvement review will then be required.\n\n### 3. Next Steps for Resident\nYou may proceed with submitting your standard zoning/building permit application. For municipal document references, visit https://www.edisonnj.org/document_center/index.php."
         }
       }
     }

@@ -95,16 +95,18 @@ def get_department_flows(dept_id: str):
     flows = registry.get_flows_for_dept(dept_id)
     return [f.model_dump() for f in flows]
 
-@app.get("/api/forms/{dept_id}/{filename}")
+@app.get("/api/forms/{dept_id}/{filename:path}")
 def serve_official_form(dept_id: str, filename: str):
     """
     Streams official static PDF document from /departments/<dept_id>/forms/<filename>.
     Does not allow path traversal.
     """
-    safe_filename = Path(filename).name
+    import urllib.parse
+    decoded_filename = urllib.parse.unquote(filename)
+    safe_filename = Path(decoded_filename).name
     pdf_path = registry.get_form_path(dept_id, safe_filename)
     if not pdf_path or not pdf_path.exists():
-        raise HTTPException(status_code=404, detail=f"Official form '{filename}' not found for department '{dept_id}'.")
+        raise HTTPException(status_code=404, detail=f"Official form '{safe_filename}' not found for department '{dept_id}'.")
 
     return FileResponse(
         path=str(pdf_path),
@@ -248,7 +250,12 @@ def chat_endpoint(req: ChatRequest):
     explicit_fill_intent = any(phrase in msg_clean for phrase in [
         "fill it out", "help me fill", "start application", "prepare application", "fill out the application"
     ])
-    if (offered_form_fill or explicit_fill_intent) and (not session or session.completed):
+    user_accepted_offer = offered_form_fill and any(w in msg_clean for w in [
+        "yes", "sure", "ok", "okay", "yep", "please", "go ahead", "let's do it"
+    ]) and not any(phrase in msg_clean for phrase in [
+        "tree", "soil", "road", "sewer", "site", "zoning", "procedure", "how to", "what about", "help me with"
+    ])
+    if (user_accepted_offer or explicit_fill_intent) and (not session or session.completed):
         # Find which form was offered or matches context
         target_form_id = None
         if "road opening" in last_bot_msg or "road" in msg_clean or "excavation" in msg_clean:
@@ -291,17 +298,21 @@ def chat_endpoint(req: ChatRequest):
             )
             if success and step:
                 citations = []
-                if session.flow_id == "tree_removal_flow":
-                    citations = [
+                if form_packet:
+                    citations.append(
                         RagCitation(
-                            url="https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
-                            title="Township of Edison Official Permit Flow Charts - Tree Removal Permit",
-                            category="Procedure/guideline",
+                            url=form_packet.pdf_download_url,
+                            title=form_packet.form_title,
+                            category="Application Form",
                             department_id="engineering",
                             relevance_score=1.0,
-                            excerpt="Decision tree flowchart determining when a Tree Removal Permit is required, emergency removal protocols, and subdivision/demolition requirements (Page 3)."
+                            excerpt=f"Official Township Application Form: {form_packet.form_title}. Form Code: {form_packet.form_code}. Download: {form_packet.pdf_download_url}",
+                            visibility="public",
+                            document_type="application_form",
+                            service=form_packet.form_code,
+                            verification_status="verified"
                         )
-                    ]
+                    )
                 user_content = req.message if not req.selected_option_id else f"Selected option: {req.selected_option_id}"
                 history.append({"role": "user", "content": user_content})
                 history.append({"role": "assistant", "content": step.message})
@@ -322,10 +333,10 @@ def chat_endpoint(req: ChatRequest):
     form_packet = rag_engine.match_official_form_packet(req.message, "engineering", history=history)
 
     # Case 2: Intent detection for starting a flow
-    flow_match = rag_engine.detect_flow_intent(req.message, req.department_id)
+    flow_match = rag_engine.detect_flow_intent(req.message, req.department_id, history=history)
     if flow_match and not form_packet and (not session or session.completed):
         dept_id, flow_id = flow_match
-        success, msg, step, _ = flow_engine.start_flow(
+        success, msg, step, started_packet = flow_engine.start_flow(
             session_id=req.session_id,
             department_id=dept_id,
             flow_id=flow_id,
@@ -334,18 +345,30 @@ def chat_endpoint(req: ChatRequest):
         if success and step:
             active_sess = flow_engine.get_session(req.session_id)
             is_completed = active_sess.completed if active_sess else False
+            effective_packet = started_packet
+            if not effective_packet and active_sess and active_sess.current_step_id:
+                flow_def = registry.get_flow(dept_id, flow_id)
+                if flow_def and active_sess.current_step_id in flow_def.steps:
+                    step_obj = flow_def.steps[active_sess.current_step_id]
+                    if step_obj and step_obj.form_file:
+                        effective_packet = flow_engine._build_form_packet(dept_id, step_obj)
+
             citations = []
-            if flow_id == "tree_removal_flow":
-                citations = [
+            if effective_packet:
+                citations.append(
                     RagCitation(
-                        url="https://cms2.revize.com/revize/edisonnj/document_center/Permit%20Flow%20Charts.pdf",
-                        title="Township of Edison Official Permit Flow Charts - Tree Removal Permit",
-                        category="Procedure/guideline",
+                        url=effective_packet.pdf_download_url,
+                        title=effective_packet.form_title,
+                        category="Application Form",
                         department_id="engineering",
                         relevance_score=1.0,
-                        excerpt="Decision tree flowchart determining when a Tree Removal Permit is required, emergency removal protocols, and subdivision/demolition requirements (Page 3)."
+                        excerpt=f"Official Township Application Form: {effective_packet.form_title}. Form Code: {effective_packet.form_code}. Download: {effective_packet.pdf_download_url}",
+                        visibility="public",
+                        document_type="application_form",
+                        service=effective_packet.form_code,
+                        verification_status="verified"
                     )
-                ]
+                )
             history.append({"role": "user", "content": req.message})
             history.append({"role": "assistant", "content": step.message})
             return ChatResponse(
@@ -353,6 +376,7 @@ def chat_endpoint(req: ChatRequest):
                 message=step.message,
                 mode="flow",
                 options=step.options,
+                form_packet=effective_packet,
                 citations=citations,
                 current_step=step,
                 active_flow_id=flow_id,
@@ -372,11 +396,36 @@ def chat_endpoint(req: ChatRequest):
     # Check for Form Recommendation and Offer Conversational Fill
     rec = form_matcher.match_form(req.message, history=history)
     form_rec_dict = None
-    if rec and rec.is_application_form and rag_res.grounded:
-        form_rec_dict = rec.model_dump()
-        # If user expresses intent to apply or request permit, append the conversational filling offer
-        if any(w in msg_clean for w in ["apply", "permit", "need a form", "fill out", "want to", "how do i get"]):
-            final_message += f"\n\nWould you like me to help you fill out this application?"
+    
+    # Do not present application forms prematurely while clarifying procedural questions
+    is_clarifying_question = "?" in final_message and any(phrase in final_message.lower() for phrase in [
+        "10 cubic yards", "import or export", "impervious coverage", "ground disturbance",
+        "approved permit", "urgent situation", "emergency condition", "what specific type of work"
+    ])
+    has_apply_or_form_intent = any(w in msg_clean for w in [
+        "apply", "download", "application form", "fill out", "how do i get the form",
+        "where is the application", "give me the form", "send me the form", "form packet"
+    ])
+
+    if rec and rec.is_application_form and rag_res.grounded and not is_clarifying_question:
+        if has_apply_or_form_intent or rag_res.form_packet is not None:
+            form_rec_dict = rec.model_dump()
+            if has_apply_or_form_intent and not any(phrase in final_message.lower() for phrase in ["help you fill", "prepare this application"]):
+                final_message += f"\n\nWould you like me to help you fill out this application?"
+
+    # Filter citations to ensure internal documents are never exposed in ChatResponse, and deduplicate by URL
+    seen_urls = set()
+    safe_citations = []
+    for c in (rag_res.citations or []):
+        if getattr(c, "visibility", "public") == "internal":
+            continue
+        if "permit flow chart" in c.title.lower() or "flowchart" in getattr(c, "category", "").lower() or "permit_flow_charts" in c.url.lower():
+            continue
+        base_url = c.url.split("#")[0].split("?")[0]
+        if base_url in seen_urls:
+            continue
+        seen_urls.add(base_url)
+        safe_citations.append(c)
 
     # Record history
     history.append({"role": "user", "content": req.message})
@@ -387,7 +436,7 @@ def chat_endpoint(req: ChatRequest):
         session_id=req.session_id,
         message=final_message,
         mode="rag",
-        citations=rag_res.citations,
+        citations=safe_citations,
         form_packet=form_packet or rag_res.form_packet,
         form_recommendation=form_rec_dict,
         department_id="engineering",

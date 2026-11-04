@@ -30,6 +30,35 @@ class FlowEngine:
         if session_id in self.sessions:
             del self.sessions[session_id]
 
+    def _build_form_packet(self, session: FlowSession, step: FlowStep) -> Optional[FormIssuanceDetails]:
+        if step.type != "form_issuance":
+            return None
+        dept_config = registry.get_department(session.department_id)
+        download_url = f"/api/forms/{session.department_id}/{step.form_file}"
+        sub_routing = step.submission_routing
+        if not sub_routing and dept_config:
+            sub_routing = SubmissionRouting(
+                department=dept_config.name,
+                desk="Engineering Division",
+                digital_upload_url="https://www.edisonnj.org/document_center/index.php"
+            )
+
+        return FormIssuanceDetails(
+            form_code=step.form_code or "OFFICIAL FORM",
+            form_title=step.form_title or "Standardized Municipal Application",
+            form_file=step.form_file or "document.pdf",
+            pdf_download_url=download_url,
+            department_id=session.department_id,
+            fill_in_instructions=step.fill_in_instructions or "Complete all marked fields and sign in ink.",
+            required_attachments=step.required_attachments or [],
+            fee_info=step.fee_info,
+            submission_routing=sub_routing,
+            lead_time=step.lead_time or "5 to 10 business days",
+            visibility="public",
+            document_type="permit_application",
+            service=session.flow_id.replace("_flow", "")
+        )
+
     def start_flow(
         self,
         session_id: str,
@@ -62,7 +91,9 @@ class FlowEngine:
                 if dest_step:
                     session.current_step_id = "step_emergency_protocol_result"
                     session.completed = True
-                    return True, "Emergency protocol delivered.", dest_step, None
+                    pkt = self._build_form_packet(session, dest_step)
+                    session.form_packet = pkt
+                    return True, "Emergency protocol delivered.", dest_step, pkt
 
             # 2. Healthy / planned removal mentioned upfront
             if any(w in t for w in ["healthy", "planned", "routine", "landscape"]) and not any(w in t for w in ["dead", "dying", "hazard"]):
@@ -70,7 +101,9 @@ class FlowEngine:
                 if dest_step:
                     session.current_step_id = "step_planned_permit_required_result"
                     session.completed = True
-                    return True, "Permit requirement confirmed.", dest_step, None
+                    pkt = self._build_form_packet(session, dest_step)
+                    session.form_packet = pkt
+                    return True, "Permit requirement confirmed.", dest_step, pkt
 
             # 3. Not removing trees mentioned upfront
             if any(w in t for w in ["not removing", "no tree", "no trees", "none", "don't want to remove", "dont want to remove", "not planning to remove"]):
@@ -85,7 +118,71 @@ class FlowEngine:
                 if dest_step:
                     session.current_step_id = "step_subdivision_permit_required_result"
                     session.completed = True
-                    return True, "Subdivision permit required.", dest_step, None
+                    pkt = self._build_form_packet(session, dest_step)
+                    session.form_packet = pkt
+                    return True, "Subdivision permit required.", dest_step, pkt
+
+        # Check if user's initial query answers soil import/export steps
+        if flow_id == "soil_import_export_flow" and initial_user_text:
+            t = initial_user_text.lower().strip()
+            is_import = any(w in t for w in ["import", "bring", "deliver", "fill dirt", "topsoil", "fill my yard", "into", "onto", "add soil"])
+            is_export = any(w in t for w in ["export", "remove", "take away", "haul away", "off site", "excess soil"])
+            has_10_or_more = any(w in t for w in ["10", "20", "15", "25", "30", "40", "50", "more", "over", "large"]) and not any(w in t for w in ["less", "under"])
+            has_under_10 = any(w in t for w in ["less than 10", "under 10", "less than ten", "under ten", "5 cubic", "3 cubic", "2 cubic", "1 cubic", "few yards", "small amount"])
+
+            if is_import and not is_export:
+                if has_10_or_more:
+                    dest_step = flow.steps.get("step_soil_import_permit_required_result")
+                    if dest_step:
+                        session.current_step_id = "step_soil_import_permit_required_result"
+                        session.completed = True
+                        pkt = self._build_form_packet(session, dest_step)
+                        session.form_packet = pkt
+                        return True, "Soil import permit required.", dest_step, pkt
+                elif has_under_10:
+                    dest_step = flow.steps.get("step_soil_permit_not_required_result")
+                    if dest_step:
+                        session.current_step_id = "step_soil_permit_not_required_result"
+                        session.completed = True
+                        return True, "Soil permit not required.", dest_step, None
+                else:
+                    dest_step = flow.steps.get("step_soil_import_volume_check")
+                    if dest_step:
+                        session.current_step_id = "step_soil_import_volume_check"
+                        return True, "Volume check required.", dest_step, None
+
+            elif is_export and not is_import:
+                if has_10_or_more:
+                    dest_step = flow.steps.get("step_soil_export_permit_required_result")
+                    if dest_step:
+                        session.current_step_id = "step_soil_export_permit_required_result"
+                        session.completed = True
+                        pkt = self._build_form_packet(session, dest_step)
+                        session.form_packet = pkt
+                        return True, "Soil export permit required.", dest_step, pkt
+                elif has_under_10:
+                    dest_step = flow.steps.get("step_soil_permit_not_required_result")
+                    if dest_step:
+                        session.current_step_id = "step_soil_permit_not_required_result"
+                        session.completed = True
+                        return True, "Soil permit not required.", dest_step, None
+                else:
+                    dest_step = flow.steps.get("step_soil_export_volume_check")
+                    if dest_step:
+                        session.current_step_id = "step_soil_export_volume_check"
+                        return True, "Volume check required.", dest_step, None
+
+        # Check if user's initial query answers site improvement
+        if flow_id == "site_improvement_flow" and initial_user_text:
+            t = initial_user_text.lower().strip()
+            if any(w in t for w in ["more than 500", "over 500", "more than 1250", "over 1250", "major disturbance", "commercial", "subdivision"]):
+                dest_step = flow.steps.get("step_site_permit_required_result")
+                if dest_step:
+                    session.current_step_id = "step_site_permit_required_result"
+                    session.completed = True
+                    pkt = self._build_form_packet(session, dest_step)
+                    session.form_packet = pkt
+                    return True, "Site improvement permit required.", dest_step, pkt
 
         return True, "Procedure initiated.", current_step, None
 
@@ -126,6 +223,33 @@ class FlowEngine:
                         option_id = "opt_subdivision_demo_yes"
                     elif any(w in t for w in ["no", "neither", "not part", "nope"]):
                         option_id = "opt_subdivision_demo_no"
+            elif session.flow_id == "soil_import_export_flow":
+                if session.current_step_id == "step_soil_direction_check":
+                    if any(w in t for w in ["import", "bring", "deliver", "onto", "in", "add", "topsoil", "fill my yard", "bring soil"]):
+                        option_id = "opt_soil_import"
+                    elif any(w in t for w in ["export", "remove", "take away", "haul away", "out", "off", "remove soil"]):
+                        option_id = "opt_soil_export"
+                elif session.current_step_id == "step_soil_import_volume_check":
+                    if any(w in t for w in ["10", "20", "15", "25", "30", "more", "over", "yes", "exceed", "large"]) and not any(w in t for w in ["less", "under"]):
+                        option_id = "opt_import_volume_10_or_more"
+                    elif any(w in t for w in ["less", "under", "no", "small", "5", "3", "2", "few", "minor"]):
+                        option_id = "opt_import_volume_under_10"
+                elif session.current_step_id == "step_soil_export_volume_check":
+                    if any(w in t for w in ["10", "20", "15", "25", "30", "more", "over", "yes", "exceed", "large"]) and not any(w in t for w in ["less", "under"]):
+                        option_id = "opt_export_volume_10_or_more"
+                    elif any(w in t for w in ["less", "under", "no", "small", "5", "3", "2", "few", "minor"]):
+                        option_id = "opt_export_volume_under_10"
+            elif session.flow_id == "site_improvement_flow":
+                if session.current_step_id == "step_site_disturbance_check":
+                    if any(w in t for w in ["yes", "more", "over", "500", "1250", "exceed", "large", "improve"]):
+                        option_id = "opt_disturbance_yes"
+                    elif any(w in t for w in ["no", "less", "under", "small", "minor"]):
+                        option_id = "opt_disturbance_no"
+                elif session.current_step_id == "step_site_drainage_check":
+                    if any(w in t for w in ["yes", "drainage", "grading", "runoff", "slope"]):
+                        option_id = "opt_drainage_yes"
+                    elif any(w in t for w in ["no", "neither", "none", "no drainage"]):
+                        option_id = "opt_drainage_no"
             else:
                 # General option text matching for other flows
                 if current_step.options:
@@ -181,29 +305,7 @@ class FlowEngine:
         # Check if destination step is form issuance
         if next_step.type == "form_issuance":
             session.completed = True
-            dept_config = registry.get_department(session.department_id)
-
-            download_url = f"/api/forms/{session.department_id}/{next_step.form_file}"
-            sub_routing = next_step.submission_routing
-            if not sub_routing and dept_config:
-                sub_routing = SubmissionRouting(
-                    department=dept_config.name,
-                    desk="Engineering Division",
-                    digital_upload_url="https://www.edisonnj.org/document_center/index.php"
-                )
-
-            form_packet = FormIssuanceDetails(
-                form_code=next_step.form_code or "OFFICIAL FORM",
-                form_title=next_step.form_title or "Standardized Municipal Application",
-                form_file=next_step.form_file or "document.pdf",
-                pdf_download_url=download_url,
-                department_id=session.department_id,
-                fill_in_instructions=next_step.fill_in_instructions or "Complete all marked fields and sign in ink.",
-                required_attachments=next_step.required_attachments or [],
-                fee_info=next_step.fee_info,
-                submission_routing=sub_routing,
-                lead_time=next_step.lead_time or "5 to 10 business days"
-            )
+            form_packet = self._build_form_packet(session, next_step)
             session.form_packet = form_packet
             return True, "Form issued successfully.", next_step, form_packet
 

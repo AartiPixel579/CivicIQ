@@ -145,11 +145,48 @@ class TestEdisonResidentScenarios(unittest.TestCase):
             message="yes, it's an emergency, the tree is dead and cracked",
             department_id="engineering"
         ))
-        self.assertIn("photographic proof", r2.message.lower())
+        self.assertTrue("photograph" in r2.message.lower() or "photo" in r2.message.lower())
         self.assertIn("concurrent", r2.message.lower())
-        self.assertIsNone(r2.form_packet)
-        self.assertIn("document_center/index.php", r2.message)
-        print("[SCENARIO 9 PASSED] Multi-turn tree removal flowchart: Page 3 flowchart verified without hallucinating unverified forms")
+        self.assertIsNotNone(r2.form_packet)
+        self.assertEqual(r2.form_packet.form_file, "3.23.21 tree permit application.pdf")
+        self.assertIn("document center", r2.message.lower())
+        print("[SCENARIO 9 PASSED] Multi-turn tree removal flowchart: Page 3 flowchart verified with verified tree removal application")
+
+    def test_scenario_10_soil_import_application(self):
+        """Resident asks for soil importation application form."""
+        req = ChatRequest(
+            session_id="scen_10_soil_import",
+            message="I need to import soil for grading my backyard. Can you give me the soil importation permit application?",
+            department_id="engineering"
+        )
+        res = chat_endpoint(req)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "Forms_Soil_Importation_Appl.pdf")
+        print("[SCENARIO 10 PASSED] Soil importation permit application packet correctly matched and returned")
+
+    def test_scenario_11_soil_export_application(self):
+        """Resident asks for soil export application form."""
+        req = ChatRequest(
+            session_id="scen_11_soil_export",
+            message="I am digging a foundation and need to export soil off site. Where is the soil exportation application?",
+            department_id="engineering"
+        )
+        res = chat_endpoint(req)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "Forms_Soil_Exportation_App.pdf")
+        print("[SCENARIO 11 PASSED] Soil exportation permit application packet correctly matched and returned")
+
+    def test_scenario_12_site_improvement_application(self):
+        """Resident asks for site improvement permit application."""
+        req = ChatRequest(
+            session_id="scen_12_site_improvement",
+            message="Can I get the site improvement permit application and checklist?",
+            department_id="engineering"
+        )
+        res = chat_endpoint(req)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "SIP_Application.pdf")
+        print("[SCENARIO 12 PASSED] Site improvement permit application packet correctly matched and returned")
 
 if __name__ == "__main__":
     unittest.main()

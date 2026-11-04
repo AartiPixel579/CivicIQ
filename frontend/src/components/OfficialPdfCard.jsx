@@ -25,16 +25,20 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
       <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 px-5 py-4 text-white">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded bg-blue-700/60 font-mono text-xs font-bold text-amber-300 ring-1 ring-amber-400/40">
-              CIQ
-            </span>
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-white p-0.5 shadow-sm ring-1 ring-white/30 overflow-hidden">
+              <img
+                src="/edison-logo.png"
+                alt="Township Seal"
+                className="h-full w-full object-contain"
+              />
+            </div>
             <div className="text-xs uppercase tracking-wider font-semibold text-blue-200">
               Township of Edison • Official Municipal Record
             </div>
           </div>
           <div className="inline-flex items-center rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-300 ring-1 ring-emerald-500/30">
-            <Award className="mr-1 h-3.5 w-3.5" />
-            Verified Government Standard Form
+            <Award className="mr-1 h-3.5 w-3.5" aria-hidden="true" focusable="false" />
+            <span>Verified Government Standard Form</span>
           </div>
         </div>
 
@@ -55,16 +59,16 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
               className="inline-flex items-center px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-xs font-semibold text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-white/40"
               title="Preview Official PDF Document"
             >
-              <Eye className="mr-1.5 h-4 w-4" />
-              Preview Document
+              <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" focusable="false" />
+              <span>Preview Document</span>
             </button>
             <a
               href={formPacket.pdf_download_url}
               download={formPacket.form_file}
               className="inline-flex items-center px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-xs font-bold text-slate-950 shadow-md transition-all hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-amber-300"
             >
-              <Download className="mr-1.5 h-4 w-4 stroke-[2.5]" />
-              Download Official PDF
+              <Download className="mr-1.5 h-4 w-4 stroke-[2.5]" aria-hidden="true" focusable="false" />
+              <span>Download Official PDF</span>
             </a>
           </div>
         </div>
@@ -73,8 +77,8 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
       {/* Compliance Guarantee Bar */}
       <div className="bg-slate-100 border-b border-slate-200 px-5 py-2 flex items-center justify-between text-xs text-slate-600">
         <span className="flex items-center font-medium">
-          <ShieldAlert className="mr-1.5 h-3.5 w-3.5 text-blue-700" />
-          Pre-approved standardized form • Strict Municipal Policy: Zero AI hallucination
+          <ShieldAlert className="mr-1.5 h-3.5 w-3.5 text-blue-700" aria-hidden="true" focusable="false" />
+          <span>Pre-approved standardized form • Strict Municipal Policy: Zero AI hallucination</span>
         </span>
         <span className="font-mono text-slate-500">
           File: {formPacket.form_file}
@@ -85,8 +89,8 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
         {/* Fill-in Guidance */}
         <div className="rounded-lg bg-blue-50/60 p-3.5 border border-blue-100 text-xs text-slate-700">
           <div className="font-bold text-blue-950 mb-1 flex items-center">
-            <FileText className="mr-1.5 h-3.5 w-3.5 text-blue-700" />
-            Official Fill-In Instructions
+            <FileText className="mr-1.5 h-3.5 w-3.5 text-blue-700" aria-hidden="true" focusable="false" />
+            <span>Official Fill-In Instructions</span>
           </div>
           <p className="whitespace-pre-line leading-relaxed text-slate-700">
             {formPacket.fill_in_instructions}
@@ -104,7 +108,8 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
             </h4>
             {allChecked && (
               <span className="text-xs font-semibold text-emerald-600 flex items-center">
-                <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> All items verified!
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" focusable="false" />
+                <span>All items verified!</span>
               </span>
             )}
           </div>
@@ -123,9 +128,9 @@ export const OfficialPdfCard = ({ formPacket, onPreview }) => {
                 >
                   <div className="mt-0.5 flex-shrink-0">
                     {isChecked ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" focusable="false" />
                     ) : (
-                      <Circle className="h-4 w-4 text-slate-400" />
+                      <Circle className="h-4 w-4 text-slate-400" aria-hidden="true" focusable="false" />
                     )}
                   </div>
                   <span className={`leading-snug ${isChecked ? 'line-through text-slate-500' : 'font-medium'}`}>

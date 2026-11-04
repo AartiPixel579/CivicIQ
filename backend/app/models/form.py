@@ -18,6 +18,10 @@ class FormMetadata(BaseModel):
     form_code: str
     department: str = "engineering"
     application_type: str = Field(..., description="Application form | Permit application | Information sheet | Fee schedule | Flowchart")
+    document_type: str = Field(default="application_form", description="application_form | permit_application | checklist | information_sheet | internal_flowchart")
+    visibility: str = Field(default="public", description="public | internal")
+    service: Optional[str] = None
+    verification_status: str = Field(default="verified", description="verified | unverified | needs_review")
     description: str
     official_source_url: str
     local_filename: Optional[str] = None

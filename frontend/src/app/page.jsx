@@ -30,7 +30,7 @@ export default function Home() {
       const welcomeMsg = {
         id: 'welcome_' + Date.now(),
         sender: 'assistant',
-        text: `CivicIQ\n\nMushkil Your Edison Township Buddy\n\nHow can **"CivicIQ"** help you today?`,
+        text: `CivicIQ\n\nYour Edison Township Buddy\n\nHow can **CivicIQ** help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: 'general',
       };
@@ -169,7 +169,7 @@ export default function Home() {
       const resetMsg = {
         id: 'reset_' + Date.now(),
         sender: 'assistant',
-        text: `CivicIQ\n\nMushkil Your Edison Township Buddy\n\nHow can **"CivicIQ"** help you today?`,
+        text: `CivicIQ\n\nYour Edison Township Buddy\n\nHow can **CivicIQ** help you today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: 'general',
       };
@@ -192,8 +192,12 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Logo & Tagline */}
           <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-blue-950 font-black shadow-inner ring-2 ring-amber-300/40">
-              <span className="text-base tracking-tighter">CIQ</span>
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1 shadow-md ring-1 ring-white/20 overflow-hidden shrink-0">
+              <img
+                src="/edison-logo.png"
+                alt="Township of Edison Seal"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center space-x-2">
@@ -203,7 +207,7 @@ export default function Home() {
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               </div>
               <p className="text-xs font-medium text-amber-300/90 tracking-wide">
-                Mushkil Your Edison Township Buddy
+                Your Edison Township Buddy
               </p>
             </div>
           </div>
@@ -237,7 +241,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5">
           <span className="flex items-center">
             <ShieldCheck className="h-4 w-4 mr-1.5 text-blue-700" />
-            CivicIQ • Mushkil Your Edison Township Buddy • Edison Township Engineering
+            CivicIQ • Your Edison Township Buddy • Edison Township Engineering
           </span>
           <span className="font-mono text-slate-400 text-[11px]">
             edisonnj.org/document_center

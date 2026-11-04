@@ -43,9 +43,24 @@ class SQLiteVectorStore:
                     chunk_index INTEGER,
                     content TEXT NOT NULL,
                     word_count INTEGER,
+                    visibility TEXT DEFAULT 'public',
+                    document_type TEXT DEFAULT 'guideline',
+                    service TEXT,
+                    verification_status TEXT DEFAULT 'verified',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            cursor.execute("PRAGMA table_info(chunks)")
+            cols = [col[1] for col in cursor.fetchall()]
+            for c_name, c_def in [
+                ("visibility", "TEXT DEFAULT 'public'"),
+                ("document_type", "TEXT DEFAULT 'guideline'"),
+                ("service", "TEXT"),
+                ("verification_status", "TEXT DEFAULT 'verified'")
+            ]:
+                if c_name not in cols:
+                    cursor.execute(f"ALTER TABLE chunks ADD COLUMN {c_name} {c_def}")
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS index_metadata (
                     key TEXT PRIMARY KEY,
@@ -76,8 +91,8 @@ class SQLiteVectorStore:
             for ch in chunks:
                 cursor.execute("""
                     INSERT OR REPLACE INTO chunks 
-                    (id, department_id, url, title, category, chunk_index, content, word_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, department_id, url, title, category, chunk_index, content, word_count, visibility, document_type, service, verification_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     ch["id"],
                     ch["department_id"],
@@ -86,7 +101,11 @@ class SQLiteVectorStore:
                     ch.get("category", "General"),
                     ch.get("chunk_index", 0),
                     ch["content"],
-                    len(ch["content"].split())
+                    len(ch["content"].split()),
+                    ch.get("visibility", "public"),
+                    ch.get("document_type", "guideline"),
+                    ch.get("service"),
+                    ch.get("verification_status", "verified")
                 ))
             conn.commit()
 
@@ -176,7 +195,7 @@ class SQLiteVectorStore:
 
         placeholders = ",".join("?" for _ in top_ids)
         query_sql = f"""
-            SELECT id, department_id, url, title, category, content
+            SELECT id, department_id, url, title, category, content, visibility, document_type, service, verification_status
             FROM chunks
             WHERE id IN ({placeholders})
         """
@@ -192,7 +211,7 @@ class SQLiteVectorStore:
 
         results = []
         for r in rows:
-            chunk_id, dept_id, url, title, category, content = r
+            chunk_id, dept_id, url, title, category, content, visibility, doc_type, srv, ver_status = r
             score = id_score_map.get(chunk_id, 0.0)
             excerpt = content.strip().replace("\n", " ")
             if len(excerpt) > 500:
@@ -204,7 +223,11 @@ class SQLiteVectorStore:
                 category=category or "General",
                 department_id=dept_id,
                 relevance_score=round(score, 3),
-                excerpt=excerpt
+                excerpt=excerpt,
+                visibility=visibility or "public",
+                document_type=doc_type or "guideline",
+                service=srv,
+                verification_status=ver_status or "verified"
             ))
 
         results.sort(key=lambda x: x.relevance_score, reverse=True)

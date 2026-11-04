@@ -25,8 +25,8 @@ export const FormSessionCard = ({
     return (
       <div className="my-3 p-4 rounded-xl border-2 border-blue-600/40 bg-gradient-to-br from-blue-50/90 to-indigo-50/80 shadow-md text-slate-800">
         <div className="flex items-center space-x-2 text-xs font-bold text-blue-900 mb-1">
-          <FileText className="h-4 w-4 text-blue-700" />
-          <span>OFFICIAL APPLICATION IDENTIFIED</span>
+          <FileText className="h-4 w-4 text-blue-700 flex-shrink-0" aria-hidden="true" focusable="false" />
+          <span className="tracking-wide">Official Application Identified</span>
         </div>
         <h4 className="text-sm font-bold text-slate-900 mb-1">
           {form.official_title}
@@ -41,7 +41,7 @@ export const FormSessionCard = ({
             className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-sm transition-all hover:scale-[1.02]"
           >
             <span>Start Guided Application</span>
-            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden="true" focusable="false" />
           </button>
           {form.local_filename && (
             <a
@@ -50,8 +50,8 @@ export const FormSessionCard = ({
               rel="noreferrer"
               className="inline-flex items-center px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium"
             >
-              <ExternalLink className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
-              Blank Form Reference
+              <ExternalLink className="mr-1.5 h-3.5 w-3.5 text-slate-500" aria-hidden="true" focusable="false" />
+              <span>Blank Form Reference</span>
             </a>
           )}
         </div>
@@ -66,8 +66,8 @@ export const FormSessionCard = ({
       <div className="my-3 p-3.5 rounded-xl border border-blue-200 bg-white shadow-sm">
         <div className="flex items-center justify-between text-xs mb-1.5">
           <span className="font-bold text-blue-950 flex items-center">
-            <FileText className="mr-1.5 h-3.5 w-3.5 text-blue-700" />
-            {sessionInfo.form_title}
+            <FileText className="mr-1.5 h-3.5 w-3.5 text-blue-700 flex-shrink-0" aria-hidden="true" focusable="false" />
+            <span>{sessionInfo.form_title}</span>
           </span>
           <span className="font-semibold text-blue-700">
             Step {sessionInfo.current_step} of {sessionInfo.total_steps} ({percent}%)
@@ -113,8 +113,8 @@ export const FormSessionCard = ({
               download
               className="inline-flex items-center px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-bold shadow-md transition-all hover:scale-[1.02]"
             >
-              <Download className="mr-1.5 h-4 w-4 stroke-[2.5]" />
-              Download Official Draft PDF
+              <Download className="mr-1.5 h-4 w-4 stroke-[2.5]" aria-hidden="true" focusable="false" />
+              <span>Download Official Draft PDF</span>
             </a>
           )}
         </div>
@@ -123,8 +123,8 @@ export const FormSessionCard = ({
         <div className="p-4 space-y-3 text-xs">
           <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed">
             <span className="font-bold flex items-center text-amber-950 mb-0.5">
-              <AlertCircle className="mr-1.5 h-4 w-4 text-amber-600 flex-shrink-0" />
-              Physical Ink Signature Required
+              <AlertCircle className="mr-1.5 h-4 w-4 text-amber-600 flex-shrink-0" aria-hidden="true" focusable="false" />
+              <span>Physical Ink Signature Required</span>
             </span>
             Per municipal regulations, AI signatures are not accepted for official government filings. Please print this generated draft, sign by hand in Section 3, and submit with mandatory attachments.
           </div>
@@ -138,7 +138,7 @@ export const FormSessionCard = ({
               <ul className="space-y-1 text-slate-700">
                 {guidance.supporting_documents.map((doc, idx) => (
                   <li key={idx} className="flex items-start">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mr-1.5 mt-0.5 flex-shrink-0" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mr-1.5 mt-0.5 flex-shrink-0" aria-hidden="true" focusable="false" />
                     <span>{doc}</span>
                   </li>
                 ))}

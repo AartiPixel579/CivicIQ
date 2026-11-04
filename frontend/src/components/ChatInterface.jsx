@@ -116,7 +116,7 @@ export const ChatInterface = ({
                 CivicIQ
               </h2>
               <span className="text-[10px] font-medium bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full ring-1 ring-amber-400/40">
-                Mushkil Your Edison Township Buddy
+                Your Edison Township Buddy
               </span>
             </div>
             <p className="text-[11px] text-blue-200/80 flex items-center">
@@ -242,7 +242,7 @@ export const ChatInterface = ({
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="h-2 w-2 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="font-medium text-slate-600">Mushkil is consulting official Edison Township engineering records...</span>
+              <span className="font-medium text-slate-600">CivicIQ is consulting official Edison Township engineering records...</span>
             </div>
           </div>
         )}

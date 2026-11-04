@@ -77,6 +77,10 @@ class FormIssuanceDetails(BaseModel):
     fee_info: Optional[FeeInfo] = None
     submission_routing: SubmissionRouting
     lead_time: str
+    visibility: str = "public"
+    document_type: str = "application_form"
+    service: Optional[str] = None
+    verification_status: str = "verified"
 
 class FlowStep(BaseModel):
     id: str
@@ -116,6 +120,10 @@ class RagCitation(BaseModel):
     department_id: str
     relevance_score: float
     excerpt: str
+    visibility: str = "public"
+    document_type: Optional[str] = "guideline"
+    service: Optional[str] = None
+    verification_status: str = "verified"
 
 class RagResult(BaseModel):
     answer: str

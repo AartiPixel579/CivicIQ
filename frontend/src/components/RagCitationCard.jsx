@@ -16,12 +16,12 @@ export const RagCitationCard = ({ citations }) => {
     <div className="mt-4 pt-3 border-t border-slate-200">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center">
-          <Link2 className="mr-1.5 h-3.5 w-3.5 text-blue-600" />
-          Verified Municipal Link Citations (RAG)
+          <Link2 className="mr-1.5 h-3.5 w-3.5 text-blue-600" aria-hidden="true" focusable="false" />
+          <span>Official Municipal References</span>
         </span>
         <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center">
-          <ShieldCheck className="mr-1 h-3 w-3" />
-          Grounded Reference
+          <ShieldCheck className="mr-1 h-3 w-3" aria-hidden="true" focusable="false" />
+          <span>Grounded Reference</span>
         </span>
       </div>
 
@@ -40,9 +40,9 @@ export const RagCitationCard = ({ citations }) => {
                   rel="noreferrer"
                   className="font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center truncate"
                 >
-                  <BookOpen className="mr-1.5 h-3.5 w-3.5 flex-shrink-0 text-blue-600" />
+                  <BookOpen className="mr-1.5 h-3.5 w-3.5 flex-shrink-0 text-blue-600" aria-hidden="true" focusable="false" />
                   <span className="truncate">{c.title}</span>
-                  <ExternalLink className="ml-1 h-3 w-3 flex-shrink-0" />
+                  <ExternalLink className="ml-1 h-3 w-3 flex-shrink-0" aria-hidden="true" focusable="false" />
                 </a>
 
                 <div className="flex items-center space-x-2 flex-shrink-0">
@@ -57,7 +57,11 @@ export const RagCitationCard = ({ citations }) => {
                     className="p-1 text-slate-400 hover:text-slate-600"
                     title={isExp ? "Collapse excerpt" : "Expand excerpt"}
                   >
-                    {isExp ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    {isExp ? (
+                      <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" focusable="false" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" focusable="false" />
+                    )}
                   </button>
                 </div>
               </div>

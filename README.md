@@ -1,4 +1,4 @@
-# CivicIQ — Mushkil Your Edison Township Buddy
+# CivicIQ — Your Edison Township Buddy
 
 **CivicIQ** is an AI-powered municipal application assistant for residents of the **Township of Edison, New Jersey** (Department of Engineering).
 
@@ -9,7 +9,7 @@ It helps residents navigate municipal procedures, permits, and engineering regul
 ## 🏛️ Official Identity & Branding
 
 - **Application Name**: `CivicIQ`
-- **Official Tagline**: `Mushkil Your Edison Township Buddy`
+- **Official Tagline**: `Your Edison Township Buddy`
 - **Welcome Prompt**: `How can **"CivicIQ"** help you today?` (visually bolded)
 - **Official Portal**: [https://www.edisonnj.org/document_center/index.php](https://www.edisonnj.org/document_center/index.php)
 

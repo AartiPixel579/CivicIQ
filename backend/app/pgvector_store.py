@@ -19,22 +19,53 @@ from .embedder import embedder, EMBEDDING_DIM
 
 logger = logging.getLogger("pgvector_store")
 
+def mask_db_url(text: str) -> str:
+    """Masks database passwords in connection strings or error messages for safe logging."""
+    if not text:
+        return ""
+    import re
+    # Mask password in URI pattern (e.g. postgresql://user:password@host:port/db)
+    text = re.sub(r":([^:@\s]+)@([^\s:]+)", r":****@\2", text)
+    # Mask password in DSN format (e.g. password=xyz)
+    text = re.sub(r"password=([^\s]+)", r"password=****", text, flags=re.IGNORECASE)
+    return text
+
 class PgVectorStore:
     def __init__(self, db_url: str = DATABASE_URL, dim: int = EMBEDDING_DIM):
         self.db_url = db_url
         self.dim = dim
         self._connected = False
 
+    def _normalize_db_url(self, raw_url: str) -> str:
+        """
+        Normalizes database URL for Supabase / PostgreSQL:
+        - Converts postgres:// to postgresql://
+        - Automatically appends sslmode=require for remote hosts (e.g. Supabase, Render, Neon)
+        """
+        url = (raw_url or "").strip()
+        if not url:
+            return ""
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        if "sslmode=" not in url.lower():
+            is_local = any(h in url.lower() for h in ["localhost", "127.0.0.1", "host.docker.internal"])
+            if not is_local:
+                delimiter = "&" if "?" in url else "?"
+                url = f"{url}{delimiter}sslmode=require"
+        return url
+
     def _get_connection(self):
-        if not self.db_url or not str(self.db_url).strip():
+        active_url = self._normalize_db_url(self.db_url or os.getenv("DATABASE_URL", ""))
+        if not active_url:
             raise ValueError("DATABASE_URL is not configured.")
-        conn = psycopg2.connect(self.db_url)
+        conn = psycopg2.connect(active_url, connect_timeout=10)
         register_vector(conn)
         return conn
 
     def check_connection(self) -> bool:
         """Tests if PostgreSQL with pgvector is reachable."""
-        if not self.db_url or not str(self.db_url).strip():
+        active_url = self._normalize_db_url(self.db_url or os.getenv("DATABASE_URL", ""))
+        if not active_url:
             return False
         try:
             with self._get_connection() as conn:
@@ -42,11 +73,14 @@ class PgVectorStore:
                     cur.execute("SELECT 1;")
                     return True
         except Exception as e:
-            logger.debug(f"pgvector connection test failed: {e}")
+            logger.debug(f"pgvector connection test note: {mask_db_url(str(e))}")
             return False
 
     def init_db(self):
         """Initializes pgvector extension and creates municipal chunks schema."""
+        active_url = self._normalize_db_url(self.db_url or os.getenv("DATABASE_URL", ""))
+        if not active_url:
+            return False
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -79,20 +113,22 @@ class PgVectorStore:
                             USING hnsw (embedding vector_cosine_ops);
                         """)
                     except Exception as idx_err:
-                        # Fallback to IVFFlat if HNSW is not enabled in older pgvector
+                        # Transaction rollback required before executing fallback on failed statement
+                        conn.rollback()
                         logger.warning(f"HNSW index creation note: {idx_err}; falling back to IVFFlat index.")
-                        cur.execute("""
-                            CREATE INDEX IF NOT EXISTS idx_chunks_ivfflat 
-                            ON municipal_knowledge_chunks 
-                            USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
-                        """)
+                        with conn.cursor() as cur_fallback:
+                            cur_fallback.execute("""
+                                CREATE INDEX IF NOT EXISTS idx_chunks_ivfflat 
+                                ON municipal_knowledge_chunks 
+                                USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
+                            """)
 
                 conn.commit()
             self._connected = True
-            logger.info("pgvector schema initialized successfully.")
+            logger.info("pgvector schema and vector extension verified successfully.")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize pgvector database: {e}")
+            logger.error(f"Failed to initialize pgvector database: {mask_db_url(str(e))}")
             self._connected = False
             return False
 

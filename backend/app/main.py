@@ -85,6 +85,7 @@ def on_startup():
     automatically trigger ingestion of official Edison Township municipal documents.
     """
     try:
+        vector_store._check_and_init()
         stats = vector_store.get_stats()
         if stats.get("total_chunks", 0) == 0:
             logger.info("Vector store is empty on startup. Triggering automatic initial ingestion...")

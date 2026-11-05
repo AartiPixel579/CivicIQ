@@ -13,7 +13,7 @@ from .config import (
     DATABASE_URL, VECTOR_STORE_PROVIDER
 )
 from .models import RagCitation
-from .pgvector_store import PgVectorStore
+from .pgvector_store import PgVectorStore, mask_db_url
 
 logger = logging.getLogger("vector_store")
 
@@ -256,8 +256,8 @@ class SQLiteVectorStore:
 
 class UnifiedVectorStore:
     """
-    Unified Vector Store that prioritizes pgvector (PostgreSQL) when available,
-    with seamless local resilience if PostgreSQL has not yet been started.
+    Unified Vector Store that prioritizes pgvector (PostgreSQL/Supabase) when available,
+    with seamless local resilience to built-in SQLite if PostgreSQL is unreachable or unconfigured.
     """
     def __init__(self):
         self.sqlite_store = SQLiteVectorStore()
@@ -266,13 +266,20 @@ class UnifiedVectorStore:
         self._check_and_init()
 
     def _check_and_init(self):
-        if VECTOR_STORE_PROVIDER == "pgvector":
+        provider = os.getenv("VECTOR_STORE_PROVIDER", VECTOR_STORE_PROVIDER).lower().strip()
+        db_url = os.getenv("DATABASE_URL", self.pg_store.db_url).strip()
+        self.pg_store.db_url = db_url
+
+        if provider == "pgvector" and db_url:
             if self.pg_store.check_connection():
                 if self.pg_store.init_db():
                     self._use_pg = True
-                    logger.info("⚡ [pgvector] Active! Operating on PostgreSQL with native vector extension.")
+                    logger.info("⚡ [pgvector] Active! Operating on PostgreSQL/Supabase with native vector extension.")
                     return
-            logger.info("ℹ️ [pgvector] PostgreSQL is not currently running at localhost:5432. Active backend: SQLite Vector Store.")
+            masked_target = mask_db_url(db_url)
+            logger.info(f"ℹ️ [pgvector] Target PostgreSQL ({masked_target}) is unreachable or initializing. Active backend: SQLite Vector Store (Local fallback).")
+        else:
+            logger.info("ℹ️ [pgvector] DATABASE_URL not set. Active backend: SQLite Vector Store (Local fallback).")
 
     def get_active_backend_name(self) -> str:
         return "pgvector (PostgreSQL)" if self._use_pg else "SQLite Vector Store (Local fallback)"
@@ -281,18 +288,24 @@ class UnifiedVectorStore:
         return self._use_pg
 
     def add_chunks(self, chunks: List[Dict]):
-        # Always update sqlite as local cache
+        # Always update local sqlite store
         self.sqlite_store.add_chunks(chunks)
-        # If pgvector is reachable, also write to pgvector
-        if self.pg_store.check_connection():
-            self.pg_store.init_db()
-            self.pg_store.add_chunks(chunks)
-            self._use_pg = True
+        # If pgvector is reachable, also sync to pgvector
+        try:
+            if self.pg_store.check_connection():
+                if self.pg_store.init_db():
+                    self.pg_store.add_chunks(chunks)
+                    self._use_pg = True
+        except Exception as e:
+            logger.warning(f"pgvector add_chunks notice: {mask_db_url(str(e))}; chunks saved in local SQLite.")
 
     def clear(self, department_id: Optional[str] = None):
         self.sqlite_store.clear(department_id)
-        if self._use_pg or self.pg_store.check_connection():
-            self.pg_store.clear(department_id)
+        if self._use_pg:
+            try:
+                self.pg_store.clear(department_id)
+            except Exception as e:
+                logger.warning(f"pgvector clear notice: {mask_db_url(str(e))}")
 
     def search(
         self,
@@ -301,16 +314,23 @@ class UnifiedVectorStore:
         top_k: int = TOP_K_RESULTS,
         threshold: float = SIMILARITY_THRESHOLD
     ) -> List[RagCitation]:
-        if self._use_pg or self.pg_store.check_connection():
-            self._use_pg = True
-            return self.pg_store.search(query, department_id, top_k, threshold)
+        if self._use_pg:
+            try:
+                return self.pg_store.search(query, department_id, top_k, threshold)
+            except Exception as e:
+                logger.warning(f"pgvector search runtime notice: {mask_db_url(str(e))}; falling back seamlessly to SQLite.")
+                self._use_pg = False
         return self.sqlite_store.search(query, department_id, top_k, threshold)
 
     def get_stats(self) -> Dict:
-        if self._use_pg or self.pg_store.check_connection():
-            stats = self.pg_store.get_stats()
-            stats["backend"] = "pgvector (PostgreSQL)"
-            return stats
+        if self._use_pg:
+            try:
+                stats = self.pg_store.get_stats()
+                stats["backend"] = "pgvector (PostgreSQL)"
+                return stats
+            except Exception as e:
+                logger.warning(f"pgvector get_stats notice: {mask_db_url(str(e))}; falling back to SQLite stats.")
+                self._use_pg = False
         stats = self.sqlite_store.get_stats()
         stats["backend"] = "SQLite Vector Store (Local fallback)"
         return stats

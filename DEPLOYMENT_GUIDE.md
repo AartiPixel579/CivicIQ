@@ -109,20 +109,17 @@ CivicIQ includes a dual-mode vector storage architecture. Choose the option that
 If you want persistent relational database storage with native PostgreSQL vector similarity:
 
 1. **Create a Free pgvector Database**:
-   - **Supabase (Recommended - Free Tier)**: Create a project at [supabase.com](https://supabase.com). In the SQL Editor, run:
-     ```sql
-     CREATE EXTENSION IF NOT EXISTS vector;
-     ```
-     Copy the connection string (URI mode) from **Project Settings** -> **Database**.
+   - **Supabase (Recommended - Free Tier)**: Create a project at [supabase.com](https://supabase.com). In **Project Settings** -> **Database**, copy the **Session Pooler (port 5432)** connection string (URI mode). CivicIQ automatically runs CREATE EXTENSION IF NOT EXISTS vector; and initializes the HNSW vector index on startup.
    - **Neon (Free Tier)**: Create a Postgres database at [neon.tech](https://neon.tech) and copy the connection string.
    - **Render PostgreSQL**: You can also add a PostgreSQL instance directly inside Render.
-2. **Add `DATABASE_URL` to Render**:
+2. **Add DATABASE_URL to Render**:
    - In your Render Web Service dashboard, go to **Environment**.
-   - Set `DATABASE_URL` to your full connection string:
-     ```
-     postgresql://postgres:[YOUR-PASSWORD]@[YOUR-HOST]:5432/postgres?sslmode=require
-     ```
-   - CivicIQ will automatically connect, initialize the `municipal_knowledge_chunks` table, and store vector embeddings. If the database is ever temporarily unreachable, CivicIQ seamlessly falls back to local SQLite without crashing.
+   - Add DATABASE_URL with your Supabase pooler connection string:
+     `
+     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres?sslmode=require
+     `
+   - CivicIQ automatically normalizes postgres:// to postgresql://, enforces sslmode=require, creates municipal_knowledge_chunks with HNSW vector index, and syncs official Edison Township documents.
+   - If Supabase is ever unreachable or paused, CivicIQ seamlessly operates on its built-in SQLite vector database without downtime or crashes.
 
 ---
 

@@ -48,7 +48,7 @@ CivicIQ is split into two cleanly separated layers:
 ## 📋 Prerequisites & Accounts
 
 Before starting, make sure you have:
-1. **GitHub Account**: Access to your repository (`https://github.com/AartiGoyal16/CivicIQ`).
+1. **GitHub Account**: Access to your repository (`https://github.com/AartiPixel579/CivicIQ`).
 2. **Render Account**: Free account at [render.com](https://render.com).
 3. **Vercel Account**: Free account at [vercel.com](https://vercel.com).
 4. **LLM API Key** (at least one free tier key):
@@ -63,7 +63,7 @@ Before starting, make sure you have:
 ### Option A: Using the `render.yaml` Blueprint (Easiest)
 1. Log in to [dashboard.render.com](https://dashboard.render.com).
 2. Click **New +** in the top right and select **Blueprint**.
-3. Connect your GitHub repository: `AartiGoyal16/CivicIQ`.
+3. Connect your GitHub repository: `AartiPixel579/CivicIQ`.
 4. Select the branch: `deployment/vercel-render`.
 5. Render will automatically parse `render.yaml` and configure the Web Service with Python 3.11, build commands, and start commands.
 6. Fill in your environment variables when prompted (see table below).
@@ -75,7 +75,7 @@ Before starting, make sure you have:
 If you prefer configuring manually through the Render dashboard:
 1. Go to [dashboard.render.com](https://dashboard.render.com) and click **New +** -> **Web Service**.
 2. Select **Build and deploy from a Git repository**.
-3. Choose `AartiGoyal16/CivicIQ`.
+3. Choose `AartiPixel579/CivicIQ`.
 4. Configure the settings:
    - **Name**: `civiciq-backend`
    - **Region**: Choose the region closest to you (e.g., *Oregon (US West)* or *Ohio (US East)*).
@@ -129,7 +129,7 @@ If you want persistent relational database storage with native PostgreSQL vector
 ## 🌐 Step 3: Deploy the Frontend on Vercel
 
 1. Log in to [vercel.com](https://vercel.com) and click **Add New...** -> **Project**.
-2. Connect your GitHub account and import `AartiGoyal16/CivicIQ`.
+2. Connect your GitHub account and import `AartiPixel579/CivicIQ`.
 3. In the project configuration screen:
    - **Project Name**: `civiciq` (or your preferred name).
    - **Framework Preset**: `Next.js` (automatically detected).

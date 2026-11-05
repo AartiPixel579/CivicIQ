@@ -207,7 +207,7 @@ class TestConversationalIntentAmbiguity(unittest.TestCase):
         self.assertIn("edison document center", msg)
 
     def test_12_followup_excavation_street_to_unconfigured(self):
-        """Resident says 'excavation' -> selects 'Street / pavement excavation' -> unconfigured service message."""
+        """Resident says 'excavation' -> selects 'Street / pavement excavation' -> provides blank RoadOpenApp.pdf and Public Works notice."""
         # Turn 1: 'excavation'
         chat_endpoint(ChatRequest(
             session_id="sess_flow_excav_street",
@@ -221,7 +221,8 @@ class TestConversationalIntentAmbiguity(unittest.TestCase):
             selected_option_id="opt_excavate_street"
         ))
 
-        self.assertEqual(res.message, UNCONFIGURED_SERVICE_MESSAGE)
+        self.assertIn("RoadOpenApp.pdf", res.message)
+        self.assertIn("Public Works", res.message)
 
     # =========================================================================
     # MULTI-TURN CONTEXT PRESERVATION
@@ -269,7 +270,7 @@ class TestConversationalIntentAmbiguity(unittest.TestCase):
     # =========================================================================
 
     def test_14_response_style_direct_first_sentence_and_bullets(self):
-        """Responses must have direct first sentence, bullet points, and clean source reference."""
+        """Responses must have direct first sentence, bullet points, clean source reference, and no form-filling prompt for Tree Removal."""
         res = chat_endpoint(ChatRequest(
             session_id="sess_style_direct",
             message="Tree removal cost"
@@ -286,33 +287,38 @@ class TestConversationalIntentAmbiguity(unittest.TestCase):
         # 3. Compact clickable source reference
         self.assertIn("Source: [Township of Edison Tree Permit Application](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf)", msg)
 
-        # 4. Next-step prompt
-        self.assertIn("Would you like help with the application?", msg)
+        # 4. Form-filling prompts and buttons must NOT be emitted for Tree Removal on deployment branch
+        self.assertNotIn("Would you like help with the application?", msg)
+        self.assertIsNone(res.options)
 
-        # 5. Interactive action buttons
-        self.assertIsNotNone(res.options)
-        labels = [opt.label for opt in res.options]
-        self.assertIn("Yes, help me apply", labels)
-        self.assertIn("No, thanks", labels)
-
-    def test_15_action_button_yes_help_me_apply_starts_form_session(self):
-        """Clicking or sending 'Yes, help me apply' starts conversational form filling."""
+    def test_15_tree_removal_form_filling_disabled(self):
+        """Verifies interactive Tree Removal form filling cannot be started and points to the official blank PDF."""
         # Setup context with Tree Removal
         chat_endpoint(ChatRequest(
-            session_id="sess_apply_yes",
+            session_id="sess_apply_tree_disabled",
             message="Tree removal cost"
         ))
 
-        # Resident clicks 'Yes, help me apply'
+        # Resident attempts to start form filling
         res = chat_endpoint(ChatRequest(
-            session_id="sess_apply_yes",
-            message="Yes, help me apply",
-            selected_option_id="opt_apply_yes"
+            session_id="sess_apply_tree_disabled",
+            message="Help me fill out tree removal application"
         ))
 
-        self.assertEqual(res.mode, "form_fill")
-        self.assertIsNotNone(res.form_session_info)
-        self.assertEqual(res.form_session_info.get("form_id"), "tree_removal")
+        # Must NOT enter form_fill mode
+        self.assertNotEqual(res.mode, "form_fill")
+        self.assertIsNone(res.form_session_info)
+        self.assertIn("unavailable", res.message.lower())
+        self.assertIn("3.23.21%20tree%20permit%20application.pdf", res.message)
+
+        # Direct API endpoint call must also be blocked
+        from fastapi import HTTPException
+        from backend.app.main import start_form_session
+        from backend.app.models.form_session import FormStartSessionRequest
+        with self.assertRaises(HTTPException) as cm:
+            start_form_session(FormStartSessionRequest(session_id="sess_api_block", form_id="tree_removal"))
+        self.assertEqual(cm.exception.status_code, 400)
+        self.assertIn("unavailable", cm.exception.detail.lower())
 
     def test_16_action_button_no_thanks_returns_friendly_closure(self):
         """Clicking or sending 'No, thanks' returns a polite closure message."""

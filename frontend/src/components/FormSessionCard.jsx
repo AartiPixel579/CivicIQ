@@ -32,22 +32,15 @@ export const FormSessionCard = ({
         </p>
 
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-blue-100">
-          <button
-            onClick={() => onStartSession(form.form_id)}
-            className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium shadow-sm transition-colors"
-          >
-            <span>Start Guided Application</span>
-            <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden="true" focusable="false" />
-          </button>
           {form.local_filename && (
             <a
               href={`/api/forms/engineering/${form.local_filename}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium transition-colors"
+              className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium transition-colors"
             >
               <ExternalLink className="mr-1.5 h-3.5 w-3.5 text-slate-500" aria-hidden="true" focusable="false" />
-              <span>Blank Form</span>
+              <span>Download Official Application (PDF)</span>
             </a>
           )}
         </div>

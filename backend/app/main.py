@@ -9,7 +9,8 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from .config import (
     APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY, APP_TAGLINE,
-    GENERATED_DRAFTS_DIR, ENVIRONMENT, IS_PRODUCTION, ALLOWED_ORIGINS
+    GENERATED_DRAFTS_DIR, ENVIRONMENT, IS_PRODUCTION, ALLOWED_ORIGINS,
+    UNCONFIGURED_SERVICE_MESSAGE
 )
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
@@ -149,6 +150,12 @@ def serve_official_form(dept_id: str, filename: str):
     decoded_filename = urllib.parse.unquote(filename)
     safe_filename = Path(decoded_filename).name
     pdf_path = registry.get_form_path(dept_id, safe_filename)
+    if not pdf_path or not pdf_path.exists():
+        for alt_dept in ["engineering", "public_works", "zoning"]:
+            candidate = registry.get_form_path(alt_dept, safe_filename)
+            if candidate and candidate.exists():
+                pdf_path = candidate
+                break
     if not pdf_path or not pdf_path.exists():
         raise HTTPException(status_code=404, detail=f"Official form '{safe_filename}' not found for department '{dept_id}'.")
 
@@ -302,11 +309,17 @@ def chat_endpoint(req: ChatRequest):
     if (user_accepted_offer or explicit_fill_intent) and (not session or session.completed):
         # Find which form was offered or matches context
         target_form_id = None
-        if "road opening" in last_bot_msg or "road" in msg_clean or "excavation" in msg_clean:
+        if "tree" in msg_clean or "tree" in last_bot_msg:
+            target_form_id = "tree_removal"
+        elif "soil import" in msg_clean or "soil import" in last_bot_msg:
+            target_form_id = "soil_import"
+        elif "soil export" in msg_clean or "soil export" in last_bot_msg:
+            target_form_id = "soil_export"
+        elif "road opening" in last_bot_msg or "road" in msg_clean or "excavation" in msg_clean:
             target_form_id = "road_opening"
         elif "sewer" in last_bot_msg or "sewer" in msg_clean:
             target_form_id = "sewer_connection"
-        elif "zoning" in last_bot_msg:
+        elif "zoning permit" in last_bot_msg or "zoning" in msg_clean:
             target_form_id = "zoning_permit"
         else:
             rec = form_matcher.match_form(req.message, history=history)
@@ -314,6 +327,22 @@ def chat_endpoint(req: ChatRequest):
                 target_form_id = rec.form.form_id
 
         if target_form_id:
+            if target_form_id == "tree_removal":
+                tree_notice = (
+                    "Interactive form filling for Tree Removal is currently unavailable in the assistant. "
+                    "You can download and complete the official blank [Township of Edison Tree Removal Permit Application](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf) "
+                    "directly and submit it to the Division of Engineering."
+                )
+                history.append({"role": "user", "content": req.message})
+                history.append({"role": "assistant", "content": tree_notice})
+                CHAT_HISTORIES[req.session_id] = history[-10:]
+                return ChatResponse(
+                    session_id=req.session_id,
+                    message=tree_notice,
+                    mode="rag",
+                    completed=False
+                )
+
             ok, start_msg, q_resp = form_session_service.start_session(req.session_id, target_form_id)
             if ok and q_resp:
                 history.append({"role": "user", "content": req.message})
@@ -343,6 +372,9 @@ def chat_endpoint(req: ChatRequest):
         "opt_tree_planned": "Planned, non-emergency removal",
         "opt_excavate_soil": "Remove soil from property (Soil Export)",
         "opt_excavate_street": "Street / pavement excavation",
+        "opt_street_opening": "Street Opening / Excavation",
+        "opt_street_apron": "Driveway Apron / Curb",
+        "opt_street_other": "Something else",
         "opt_tree_remove": "Remove a tree",
         "opt_tree_fee": "Tree permit fees",
         "opt_tree_docs": "Required documents",
@@ -358,44 +390,118 @@ def chat_endpoint(req: ChatRequest):
     if not req.message and req.selected_option_id and req.selected_option_id in OPTION_LABEL_MAP:
         req.message = OPTION_LABEL_MAP[req.selected_option_id]
 
-    # Case 0.5: Next-Step Form Assistance Action Buttons
-    is_apply_yes = (
+    # Case 0.5: Form Filling Requests or Assistance Actions (Disabled in Deployment)
+    is_fill_request = (
         req.selected_option_id == "opt_apply_yes" or
-        any(p in req.message.lower() for p in ["yes, help me apply", "help me apply", "help me fill out", "yes, please help me", "help me with the application"])
+        any(phrase in req.message.lower() for phrase in [
+            "can you fill", "could you fill", "will you fill", "fill out the form for me",
+            "fill the form for me", "fill out this form for me", "fill this form for me",
+            "fill the permit for me", "fill out the permit for me", "fill for me",
+            "fill it for me", "fill out for me", "complete the form for me",
+            "complete the application for me", "help me fill out", "help me apply",
+            "fill out application", "fill application for me", "fill permit for me",
+            "fill this application for me", "fill out the tree removal", "fill the tree removal",
+            "fill tree removal", "yes, help me apply", "help me with the application"
+        ])
     )
     is_apply_no = (
         req.selected_option_id == "opt_apply_no" or
         any(p in req.message.lower() for p in ["no, thanks", "no thanks", "no thank you", "no, thank you", "not now"])
     )
 
-    if is_apply_yes:
-        form_id = "tree_removal"
-        for msg in reversed(history):
-            content = msg.get("content", "").lower()
-            if "soil import" in content:
-                form_id = "soil_import"
-                break
-            elif "soil export" in content:
-                form_id = "soil_export"
-                break
-            elif "tree" in content:
-                form_id = "tree_removal"
-                break
-
-        success, msg, q_resp = form_session_service.start_session(req.session_id, form_id)
-        if success and q_resp:
-            msg_text = q_resp.message
-            user_text = req.message if req.message else "Yes, help me apply"
-            history.append({"role": "user", "content": user_text})
-            history.append({"role": "assistant", "content": msg_text})
-            CHAT_HISTORIES[req.session_id] = history[-10:]
-            return ChatResponse(
-                session_id=req.session_id,
-                message=msg_text,
-                mode="form_fill",
-                completed=False,
-                form_session_info=q_resp.model_dump()
+    if is_fill_request:
+        m_lower = req.message.lower()
+        packet = None
+        if any(w in m_lower for w in ["tree", "arborist"]):
+            packet = rag_engine.match_official_form_packet("tree removal", force=True)
+            notice = (
+                "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                "You can download the official blank [Township of Edison Tree Removal Permit Application (PDF)](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf) "
+                "to complete and submit directly to the Division of Engineering."
             )
+        elif any(w in m_lower for w in ["soil import", "import soil"]):
+            packet = rag_engine.match_official_form_packet("soil import", force=True)
+            notice = (
+                "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                "You can download the official blank [Township of Edison Soil Importation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Importation_Appl.pdf) "
+                "to complete and submit directly to the Division of Engineering."
+            )
+        elif any(w in m_lower for w in ["soil export", "export soil"]):
+            packet = rag_engine.match_official_form_packet("soil export", force=True)
+            notice = (
+                "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                "You can download the official blank [Township of Edison Soil Exportation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Exportation_App.pdf) "
+                "to complete and submit directly to the Division of Engineering."
+            )
+        elif any(w in m_lower for w in ["road", "street"]):
+            packet = rag_engine.match_official_form_packet("road opening", force=True)
+            notice = (
+                "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                "You can download the official blank [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf) "
+                "to complete and submit directly to the Department of Public Works."
+            )
+        else:
+            for msg in reversed(history):
+                c = msg.get("content", "").lower()
+                if "soil import" in c:
+                    packet = rag_engine.match_official_form_packet("soil import", force=True)
+                    notice = (
+                        "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                        "You can download the official blank [Township of Edison Soil Importation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Importation_Appl.pdf) "
+                        "to complete and submit directly to the Division of Engineering."
+                    )
+                    break
+                elif "soil export" in c:
+                    packet = rag_engine.match_official_form_packet("soil export", force=True)
+                    notice = (
+                        "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                        "You can download the official blank [Township of Edison Soil Exportation Permit Application (PDF)](/api/forms/engineering/Forms_Soil_Exportation_App.pdf) "
+                        "to complete and submit directly to the Division of Engineering."
+                    )
+                    break
+                elif "tree" in c:
+                    packet = rag_engine.match_official_form_packet("tree removal", force=True)
+                    notice = (
+                        "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                        "You can download the official blank [Township of Edison Tree Removal Permit Application (PDF)](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf) "
+                        "to complete and submit directly to the Division of Engineering."
+                    )
+                    break
+            else:
+                notice = (
+                    "CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. "
+                    "You can download the official blank application to complete and submit directly to the Division of Engineering."
+                )
+
+        citations = []
+        if packet:
+            citations.append(
+                RagCitation(
+                    url=packet.pdf_download_url,
+                    title=packet.form_title,
+                    category="Application Form",
+                    department_id="engineering",
+                    relevance_score=1.0,
+                    excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
+                    visibility="public",
+                    document_type="application_form",
+                    service=packet.form_code,
+                    verification_status="verified"
+                )
+            )
+
+        user_text = req.message if req.message else "Can you fill this form for me?"
+        history.append({"role": "user", "content": user_text})
+        history.append({"role": "assistant", "content": notice})
+        CHAT_HISTORIES[req.session_id] = history[-10:]
+        return ChatResponse(
+            session_id=req.session_id,
+            message=notice,
+            mode="rag",
+            form_packet=packet,
+            citations=citations,
+            completed=False
+        )
 
     if is_apply_no:
         closure_msg = "No problem! Let me know if you need any other assistance with Edison Township Engineering services."
@@ -409,6 +515,16 @@ def chat_endpoint(req: ChatRequest):
             mode="rag",
             completed=False
         )
+
+    # Check for volume or procedural corrections to a completed flow
+    if session and session.completed:
+        is_correction = any(phrase in req.message.lower() for phrase in [
+            "actually", "wait", "change", "correct", "correction", "more than", "less than",
+            "10 cubic", "under 10", "over 10", "5 cubic", "15 cubic", "20 cubic"
+        ])
+        if is_correction and session.flow_id in ["soil_import_export_flow", "tree_removal_flow"]:
+            flow_engine.reset_session(req.session_id)
+            session = None
 
     # Case 1: Active procedural flow (advanced by button option selection OR typed natural language!)
     if session and not session.completed:
@@ -567,16 +683,13 @@ def chat_endpoint(req: ChatRequest):
 
     is_unconfigured_or_out_of_context = (
         "out of our context" in final_message.lower() or
-        "hasn't been configured yet" in final_message.lower()
+        final_message.strip() == UNCONFIGURED_SERVICE_MESSAGE.strip() or
+        "this service hasn't been configured yet in civiciq" in final_message.lower()
     )
 
-    if rec and rec.is_application_form and rag_res.grounded and not is_clarifying_question and not is_unconfigured_or_out_of_context:
-        # Only offer conversational form filling for supported/verified services
-        if rec.form.form_id in ["tree_removal", "soil_import", "soil_export"]:
-            if has_apply_or_form_intent or rag_res.form_packet is not None:
-                form_rec_dict = rec.model_dump()
-                if has_apply_or_form_intent and not any(phrase in final_message.lower() for phrase in ["help you fill", "prepare this application"]):
-                    final_message += f"\n\nWould you like me to help you fill out this application?"
+    # In deployment, interactive conversational form filling is disabled.
+    # Blank official applications are delivered via form_packet and citations.
+    form_rec_dict = None
 
     # Filter citations to ensure internal documents are never exposed in ChatResponse, and deduplicate by URL
     seen_urls = set()
@@ -597,12 +710,14 @@ def chat_endpoint(req: ChatRequest):
     history.append({"role": "assistant", "content": final_message})
     CHAT_HISTORIES[req.session_id] = history[-10:]
 
+    effective_form_packet = None if is_unconfigured_or_out_of_context else (rag_res.form_packet or form_packet)
+
     return ChatResponse(
         session_id=req.session_id,
         message=final_message,
         mode="rag",
         citations=safe_citations,
-        form_packet=form_packet or rag_res.form_packet,
+        form_packet=effective_form_packet,
         form_recommendation=form_rec_dict,
         options=rag_res.options,
         department_id="engineering",
@@ -689,54 +804,42 @@ def recommend_form(query: str = Query(...)):
 @app.post("/api/form-session/start", response_model=FormQuestionResponse)
 def start_form_session(req: FormStartSessionRequest):
     """Starts a step-by-step conversational form filling session."""
-    ok, msg, resp = form_session_service.start_session(req.session_id, req.form_id)
-    if not ok or not resp:
-        raise HTTPException(status_code=400, detail=msg)
-    return resp
+    raise HTTPException(
+        status_code=400,
+        detail="Interactive form filling is currently unavailable in this deployment. Please download and complete the official blank municipal application PDF directly."
+    )
 
 @app.post("/api/form-session/answer", response_model=FormQuestionResponse)
 def answer_form_session(req: FormAnswerRequest):
     """Submits answer for the current question in an active form session."""
-    ok, msg, resp = form_session_service.answer_question(req.session_id, req.answer)
-    if not ok or not resp:
-        raise HTTPException(status_code=400, detail=msg)
-    return resp
+    raise HTTPException(
+        status_code=400,
+        detail="Interactive form filling is currently unavailable in this deployment."
+    )
 
 @app.post("/api/form-session/edit", response_model=FormQuestionResponse)
 def edit_form_session(req: FormEditRequest):
     """Edits a previously submitted answer in an active form session."""
-    ok, msg, resp = form_session_service.edit_answer(req.session_id, req.field_name, req.new_answer)
-    if not ok or not resp:
-        raise HTTPException(status_code=400, detail=msg)
-    return resp
+    raise HTTPException(
+        status_code=400,
+        detail="Interactive form filling is currently unavailable in this deployment."
+    )
 
 @app.get("/api/form-session/review")
 def review_form_session(session_id: str = Query(...)):
     """Returns review summary of all collected information."""
-    state = form_session_service.get_session(session_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="No active application session found.")
-    form = form_schema_service.get_form_by_id(state.form_id)
-    if not form:
-        raise HTTPException(status_code=404, detail="Form definition not found.")
-    return form_session_service._build_review_response(state, form)
+    raise HTTPException(
+        status_code=400,
+        detail="Interactive form filling is currently unavailable in this deployment."
+    )
 
 @app.post("/api/form-session/generate-pdf")
 def generate_form_pdf(session_id: str = Query(...)):
     """Generates a completed municipal draft PDF populated with resident answers."""
-    state = form_session_service.get_session(session_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="No active application session found.")
-    ok, msg, path, url = pdf_filler.generate_draft_pdf(session_id, state.form_id, state.answers)
-    if not ok:
-        raise HTTPException(status_code=500, detail=msg)
-    guidance = submission_guidance_service.get_guidance(state.form_id, state.answers)
-    return {
-        "status": "success",
-        "pdf_download_url": url,
-        "filename": Path(path).name,
-        "submission_guidance": guidance
-    }
+    raise HTTPException(
+        status_code=400,
+        detail="Interactive PDF draft generation is currently unavailable in this deployment. Please download and complete the official blank municipal application PDF directly."
+    )
 
 @app.get("/api/form-session/download/{session_id}/{filename}")
 def download_draft_pdf(session_id: str, filename: str):

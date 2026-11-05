@@ -128,19 +128,19 @@ class TestEngineeringServicesRouting(unittest.TestCase):
     def test_query_6_road_opening_unconfigured(self):
         """
         Query 6: 'How do I apply for a road-opening permit?'
-        - Street Opening is NOT yet implemented in CivicIQ.
-        - Must return UNCONFIGURED_SERVICE_MESSAGE.
+        - Street Opening is handled by Department of Public Works.
+        - Provides official blank RoadOpenApp.pdf and states interactive workflow is not configured.
         - Must NOT activate workflow or ask for 811 utility ticket.
-        - Must NOT return RoadOpenApp.pdf.
         """
         intent = service_intent_service.detect_intent("How do I apply for a road-opening permit?")
-        self.assertEqual(intent.service_id, "unconfigured_service")
-        self.assertFalse(intent.is_supported)
+        self.assertEqual(intent.service_id, "road_opening")
+        self.assertTrue(intent.is_supported)
 
         res = rag_engine.answer_query("How do I apply for a road-opening permit?")
         self.assertIn("This service hasn't been configured yet", res.answer)
-        self.assertIsNone(res.form_packet)
-        self.assertEqual(len(res.citations), 0)
+        self.assertIn("RoadOpenApp.pdf", res.answer)
+        self.assertIn("Public Works", res.answer)
+        self.assertNotIn("811", res.answer)
 
     def test_query_7_improve_property_unconfigured(self):
         """

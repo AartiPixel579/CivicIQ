@@ -124,35 +124,24 @@ export default function Home() {
   // 3. Start Form Session directly via API or message
   const handleStartFormSession = async (formId) => {
     if (!sessionId) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/form-session/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          form_id: formId,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const asstMsg = {
-          id: 'asst_' + Date.now(),
-          sender: 'assistant',
-          text: data.message,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          form_session_info: data.session_info,
-        };
-        setMessages(prev => [...prev, asstMsg]);
-      } else {
-        await handleSendMessage(`Yes, please help me fill out the ${formId} application.`);
-      }
-    } catch (err) {
-      console.error('Start form error:', err);
-      await handleSendMessage(`Yes, please help me fill out this application.`);
-    } finally {
-      setIsLoading(false);
-    }
+    const formFileMap = {
+      tree_removal: { name: 'Tree Removal Permit Application', file: '3.23.21%20tree%20permit%20application.pdf' },
+      soil_import: { name: 'Soil Importation Permit Application', file: 'Forms_Soil_Importation_Appl.pdf' },
+      soil_export: { name: 'Soil Exportation Permit Application', file: 'Forms_Soil_Exportation_App.pdf' },
+      road_opening: { name: 'Street Opening Application', file: 'RoadOpenApp.pdf' },
+    };
+    const target = formFileMap[formId] || { name: 'municipal application', file: '' };
+    const linkText = target.file 
+      ? `[Township of Edison ${target.name}](/api/forms/engineering/${target.file})`
+      : 'the official application form';
+
+    const noticeMsg = {
+      id: 'asst_' + Date.now(),
+      sender: 'assistant',
+      text: `CivicIQ currently provides official blank municipal applications and procedural guidance, not interactive form completion. You can download the official blank ${linkText} directly to complete and submit to the Division of Engineering.`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setMessages(prev => [...prev, noticeMsg]);
   };
 
   const handleEditField = (fieldId) => {

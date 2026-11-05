@@ -139,7 +139,7 @@ CivicIQ/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/AartiGoyal16/CivicIQ.git
+git clone https://github.com/AartiPixel579/CivicIQ.git
 cd CivicIQ
 ```
 

@@ -272,7 +272,8 @@ class TestTreeRemovalRegression(unittest.TestCase):
             department_id="engineering"
         ))
         self.assertIn("This service hasn't been configured yet", r1.message)
-        self.assertIsNone(r1.form_packet)
+        self.assertIsNotNone(r1.form_packet)
+        self.assertEqual(r1.form_packet.form_file, "RoadOpenApp.pdf")
 
         # Turn 2: Switch to Tree Removal
         r2 = chat_endpoint(ChatRequest(

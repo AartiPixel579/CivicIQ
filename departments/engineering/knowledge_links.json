@@ -30,11 +30,11 @@
       "content": "EDISON TOWNSHIP ZONING PERMIT FEE SCHEDULE (ORDINANCE O.2158)\n1. RESIDENTIAL FEES: Residential Fence: $50.00. Shed (under 200 sq.ft.): $50.00; Shed (> 200 sq.ft.): $100.00. Swimming Pool (Above-Ground): $75.00; In-Ground Pool: $150.00. Residential Addition / Alteration: $100.00. New Single-Family Dwelling: $200.00. Deck Construction: $75.00.\n2. COMMERCIAL FEES: Change of Tenancy / Commercial Use: $250.00. Commercial Site Plan Zoning Review: $500.00 base.\n3. PAYMENT PROTOCOL: Check payable to 'Township of Edison' or credit card at Engineering Intake Counter."
     },
     {
-      "url": "https://www.edisonnj.org/document_center/RoadOpenApp.pdf",
-      "title": "Edison Township Street Opening & Right-of-Way Road Excavation Permit",
-      "category": "Public Works & Infrastructure",
-      "summary": "Application requirements, pavement cutting restrictions, traffic safety plans, and restoration bond deposits for street excavation.",
-      "content": "EDISON TOWNSHIP ROAD OPENING PERMIT (DPW / ENGINEERING)\n1. UTILITY CLEARANCE: Mandatory 811 Call Before You Dig locate ticket number must be affixed prior to application intake.\n2. PAVEMENT RESTORATION BOND: A refundable restoration guarantee deposit or surety bond of $5,000.00 is required for all pavement cuts to ensure 12-month asphalt settlement stability.\n3. TRAFFIC CONTROL: If roadway obstruction exceeds single-lane flagger clearance, an approved Edison Police Traffic Division traffic control detour plan must be attached.\n4. SUBMISSION INTAKE: Submit directly to Public Works & Engineering Desk, 100 Municipal Blvd, Edison, NJ."
+      "url": "https://www.edisonnj.org/document_center/RoadOpenApp.pdf?t=202409111411520",
+      "title": "Township of Edison Street Opening Application",
+      "category": "Public Works",
+      "summary": "Official Township of Edison Street Opening Application from the Department of Public Works for pavement cutting, utility trenching, and right-of-way excavation.",
+      "content": "EDISON TOWNSHIP STREET OPENING APPLICATION (DEPARTMENT OF PUBLIC WORKS)\n1. JURISDICTION: Listed under Public Works in the Edison Township Document Center.\n2. UTILITY CLEARANCE: Mandatory 811 Call Before You Dig locate ticket number must be obtained prior to excavation.\n3. PAVEMENT RESTORATION BOND: A refundable restoration guarantee deposit of $5,000.00 and $150 filing fee are required.\n4. SUBMISSION INTAKE: Submit directly to Department of Public Works, 100 Municipal Blvd, Edison, NJ."
     },
     {
       "url": "https://www.edisonnj.org/Departments/Engineering%20Department/ZONING%20MAP.pdf",
@@ -70,6 +70,20 @@
       "category": "Application Forms",
       "summary": "Official application and 25-point engineering checklist for site improvements, grading, disturbance, and impervious coverage.",
       "content": "EDISON TOWNSHIP SITE IMPROVEMENT PERMIT (SIP)\n1. SITE PLAN REQUIREMENT: Two (2) signed and sealed copies of engineering site improvement plan.\n2. CHECKLIST: Complete 25-item municipal engineering checklist.\n3. STORMWATER MANAGEMENT: Runoff calculations and drainage plan.\n4. FEES: Standard engineering review and inspection escrow deposit."
+    },
+    {
+      "url": "https://www.edisonnj.org/document_center/Flood_Zone_Determination_Letter_REQUEST.pdf?t=202409111411240",
+      "title": "Township of Edison Flood Zone Determination Letter Request",
+      "category": "Application Forms",
+      "summary": "Official request form to obtain written determination from the Division of Engineering regarding FEMA flood zone status.",
+      "content": "EDISON TOWNSHIP FLOOD ZONE DETERMINATION LETTER REQUEST\n1. PROPERTY DATA: Requires Block, Lot, property address, and applicant contact details.\n2. FEE: $25.00 Flood Letter Fee.\n3. SUBMISSION: Division of Engineering, Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817."
+    },
+    {
+      "url": "https://www.edisonnj.org/document_center/Requirements%20for%20Plot%20Grading%20Plans%20-%20Minor%20Development.pdf",
+      "title": "Township of Edison Requirements for Plot Grading Plans – Minor Development",
+      "category": "Procedure/Guideline",
+      "summary": "Mandatory engineering requirements for plot grading plans on minor developments.",
+      "content": "EDISON TOWNSHIP REQUIREMENTS FOR PLOT GRADING PLANS\n1. SEAL REQUIREMENT: Must be prepared, signed, and sealed by a NJ licensed Professional Engineer or Land Surveyor.\n2. BOUNDARY SURVEY OVERLAY: Must be overlaid on certified boundary survey with existing and proposed contours.\n3. STORMWATER MANAGEMENT: On-site seepage pit infiltration per Title 34 and soil erosion sediment control measures.\n4. SUBMISSION: Three (3) copies submitted with Site Improvement Permit (SIP) application to Division of Engineering."
     }
   ]
 }

@@ -40,6 +40,9 @@ class PdfFillerService:
         Generates completed draft PDF populated with resident answers.
         Returns: (success, message, local_filepath, download_url)
         """
+        if form_id == "tree_removal":
+            return False, "Interactive draft PDF generation for Tree Removal is currently unavailable.", None, None
+
         form = form_schema_service.get_form_by_id(form_id)
         if not form:
             return False, f"Form '{form_id}' not found.", None, None

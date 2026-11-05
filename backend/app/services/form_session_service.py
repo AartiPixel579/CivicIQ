@@ -33,6 +33,9 @@ class FormSessionService:
             del self.sessions[session_id]
 
     def start_session(self, session_id: str, form_id: str) -> Tuple[bool, str, Optional[FormQuestionResponse]]:
+        if form_id == "tree_removal":
+            return False, "Interactive form filling for Tree Removal is currently unavailable. Please download the official blank application.", None
+
         form = form_schema_service.get_form_by_id(form_id)
         if not form:
             return False, f"Official form '{form_id}' not found in registry.", None

@@ -29,9 +29,3 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
-      - key: OPENROUTER_API_KEY
-        sync: false
-      - key: OPENROUTER_MODEL
-        value: meta-llama/llama-3.2-3b-instruct:free
-      - key: OPENROUTER_ALLOW_FREE_MODELS_ONLY
-        value: "true"

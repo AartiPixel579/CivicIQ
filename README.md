@@ -71,8 +71,8 @@ Copy `.env.example` to `.env`:
 # Official Identity
 MUNICIPALITY_NAME=Township of Edison, New Jersey
 
-# Vector Store
-DATABASE_URL=postgresql://postgres:postgrespassword@localhost:5432/civiciq
+# Vector Store (leave empty to use built-in SQLite vector store)
+DATABASE_URL=
 VECTOR_STORE_PROVIDER=pgvector
 SIMILARITY_THRESHOLD=0.075
 EMBEDDING_DIM=128
@@ -99,7 +99,7 @@ OPENROUTER_MODEL=meta-llama/llama-3.2-3b-instruct:free
 OPENROUTER_ALLOW_FREE_MODELS_ONLY=true
 
 # Admin Ingestion Key
-ADMIN_API_KEY=edison_admin_secret_key_2026
+ADMIN_API_KEY=replace_with_a_strong_random_secret
 ```
 
 ---

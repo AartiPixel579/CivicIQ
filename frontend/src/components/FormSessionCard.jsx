@@ -5,6 +5,7 @@ import {
   FileText, CheckCircle2, Download, Edit3, ArrowRight, 
   AlertCircle, ExternalLink 
 } from 'lucide-react';
+import { resolveBackendUrl } from '../utils/url';
 
 export const FormSessionCard = ({
   recommendation,
@@ -32,9 +33,9 @@ export const FormSessionCard = ({
         </p>
 
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-blue-100">
-          {form.local_filename && (
+          {form?.local_filename && (
             <a
-              href={`/api/forms/engineering/${form.local_filename}`}
+              href={resolveBackendUrl(`/api/forms/engineering/${form.local_filename}`)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium transition-colors"
@@ -97,8 +98,10 @@ export const FormSessionCard = ({
           </div>
           {pdfUrl && (
             <a
-              href={pdfUrl}
+              href={resolveBackendUrl(pdfUrl)}
               download
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm transition-colors"
             >
               <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" focusable="false" />

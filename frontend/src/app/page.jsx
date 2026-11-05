@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Bot, Sparkles } from 'lucide-react';
 import { ChatInterface } from '../components/ChatInterface';
 import { PdfPreviewModal } from '../components/PdfPreviewModal';
+import { resolveBackendUrl } from '../utils/url';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/+$/, '');
 
 export default function Home() {
   const [sessionId, setSessionId] = useState('');
@@ -125,14 +126,15 @@ export default function Home() {
   const handleStartFormSession = async (formId) => {
     if (!sessionId) return;
     const formFileMap = {
-      tree_removal: { name: 'Tree Removal Permit Application', file: '3.23.21%20tree%20permit%20application.pdf' },
-      soil_import: { name: 'Soil Importation Permit Application', file: 'Forms_Soil_Importation_Appl.pdf' },
-      soil_export: { name: 'Soil Exportation Permit Application', file: 'Forms_Soil_Exportation_App.pdf' },
-      road_opening: { name: 'Street Opening Application', file: 'RoadOpenApp.pdf' },
+      tree_removal: { name: 'Tree Removal Permit Application', file: '3.23.21%20tree%20permit%20application.pdf', dept: 'engineering' },
+      soil_import: { name: 'Soil Importation Permit Application', file: 'Forms_Soil_Importation_Appl.pdf', dept: 'engineering' },
+      soil_export: { name: 'Soil Exportation Permit Application', file: 'Forms_Soil_Exportation_App.pdf', dept: 'engineering' },
+      road_opening: { name: 'Street Opening Application', file: 'RoadOpenApp.pdf', dept: 'public_works' },
     };
-    const target = formFileMap[formId] || { name: 'municipal application', file: '' };
+    const target = formFileMap[formId] || { name: 'municipal application', file: '', dept: 'engineering' };
+    const resolvedFormUrl = target.file ? resolveBackendUrl(`/api/forms/${target.dept}/${target.file}`) : '';
     const linkText = target.file 
-      ? `[Township of Edison ${target.name}](/api/forms/engineering/${target.file})`
+      ? `[Township of Edison ${target.name}](${resolvedFormUrl})`
       : 'the official application form';
 
     const noticeMsg = {
@@ -169,7 +171,7 @@ export default function Home() {
   };
 
   const handleOpenPdfPreview = (url, title) => {
-    setPreviewPdfUrl(url);
+    setPreviewPdfUrl(resolveBackendUrl(url));
     setPreviewPdfTitle(title);
     setIsPreviewOpen(true);
   };

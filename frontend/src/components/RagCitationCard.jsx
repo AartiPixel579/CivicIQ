@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { BookOpen, ExternalLink } from 'lucide-react';
+import { resolveBackendUrl } from '../utils/url';
 
 export const RagCitationCard = ({ citations }) => {
   if (!citations || citations.length === 0) return null;
@@ -15,7 +16,7 @@ export const RagCitationCard = ({ citations }) => {
         {citations.map((c, idx) => (
           <a
             key={idx}
-            href={c.url}
+            href={resolveBackendUrl(c.url)}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between p-2 rounded-lg border border-slate-200/80 bg-slate-50/60 hover:bg-blue-50/50 hover:border-blue-300 text-xs text-slate-700 transition-colors group"

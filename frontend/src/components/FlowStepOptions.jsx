@@ -10,7 +10,7 @@ export const FlowStepOptions = ({
 }) => {
   if (!options || options.length === 0) return null;
 
-  const isShortList = options.length <= 3 && options.every(o => !o.description && o.label.length < 32);
+  const isShortList = options.length <= 3 && options.every(o => !o.description && (o.label || '').length < 32);
 
   return (
     <div className="mt-3">
@@ -32,7 +32,7 @@ export const FlowStepOptions = ({
             <div className="pr-2">
               <div className="font-semibold text-slate-900 group-hover:text-blue-900 flex items-center">
                 <CheckCircle className="mr-1.5 h-3.5 w-3.5 text-blue-600 group-hover:text-blue-700 flex-shrink-0" />
-                <span>{opt.label}</span>
+                <span>{opt.label || opt.id}</span>
               </div>
               {opt.description && (
                 <p className="mt-0.5 text-slate-500 pl-5 text-[11px] leading-relaxed">

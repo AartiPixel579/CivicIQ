@@ -9,9 +9,10 @@ import { FlowStepOptions } from './FlowStepOptions';
 import { OfficialPdfCard } from './OfficialPdfCard';
 import { RagCitationCard } from './RagCitationCard';
 import { FormSessionCard } from './FormSessionCard';
+import { resolveBackendUrl } from '../utils/url';
 
 export const renderFormattedText = (text) => {
-  if (!text) return null;
+  if (!text || typeof text !== 'string') return null;
   const paragraphs = text.split('\n');
 
   return paragraphs.map((paragraph, pIdx) => {
@@ -41,10 +42,11 @@ export const renderFormattedText = (text) => {
       } else if (token.startsWith('[') && token.includes('](')) {
         const linkText = token.substring(1, token.indexOf(']('));
         const linkUrl = token.substring(token.indexOf('](') + 2, token.length - 1);
+        const resolvedLink = resolveBackendUrl(linkUrl);
         parts.push(
           <a
             key={`a-${pIdx}-${keyIdx++}`}
-            href={linkUrl}
+            href={resolvedLink}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 underline hover:text-blue-800 font-medium"

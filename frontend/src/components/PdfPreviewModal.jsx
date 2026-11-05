@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { X, Download, ExternalLink, ShieldCheck, FileText } from 'lucide-react';
+import { resolveBackendUrl } from '../utils/url';
 
 export const PdfPreviewModal = ({
   isOpen,
@@ -10,6 +11,8 @@ export const PdfPreviewModal = ({
   title
 }) => {
   if (!isOpen) return null;
+
+  const resolvedUrl = resolveBackendUrl(pdfUrl);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
@@ -37,15 +40,17 @@ export const PdfPreviewModal = ({
 
           <div className="flex items-center space-x-2">
             <a
-              href={pdfUrl}
+              href={resolvedUrl}
               download
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all"
             >
               <Download className="h-3.5 w-3.5 mr-1" />
               Download
             </a>
             <a
-              href={pdfUrl}
+              href={resolvedUrl}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center p-2 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-200 transition-all"
@@ -66,7 +71,7 @@ export const PdfPreviewModal = ({
         {/* PDF Embedded View */}
         <div className="relative flex-1 w-full bg-slate-200">
           <iframe
-            src={`${pdfUrl}#toolbar=1&navpanes=0`}
+            src={`${resolvedUrl}#toolbar=1&navpanes=0`}
             className="w-full h-full border-0"
             title={title}
           />

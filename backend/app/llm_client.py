@@ -1,7 +1,7 @@
 """
 LLM Client for CivicIQ ("Your Edison Township Buddy")
 Municipality: Township of Edison, New Jersey (Engineering Department)
-Uses free-first provider architecture: Gemini (Primary) -> Groq (First Backup) -> OpenRouter (Free Only)
+Uses free-first provider architecture: Gemini (Primary) -> Groq (Fallback)
 Provides transparent grounded retrieval fallback when offline.
 """
 
@@ -64,7 +64,7 @@ class LLMClient:
         department_name: str = "Department of Engineering"
     ) -> str:
         """
-        Generates a grounded response using LLMProviderManager (Gemini -> Groq -> OpenRouter)
+        Generates a grounded response using LLMProviderManager (Gemini -> Groq)
         with transparent grounded retrieval synthesis fallback when providers are offline/unconfigured.
         """
         if not citations:

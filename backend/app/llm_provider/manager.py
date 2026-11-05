@@ -3,12 +3,9 @@ from typing import List, Dict, Optional, Any
 from .base import BaseLLMProvider, LLMResponse
 from .gemini import GeminiProvider
 from .groq import GroqProvider
-from .openrouter import OpenRouterProvider
 from ..config import (
     GEMINI_API_KEY, GEMINI_MODEL,
     GROQ_API_KEY, GROQ_BASE_URL, GROQ_MODEL,
-    OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_MODEL,
-    OPENROUTER_ALLOW_FREE_MODELS_ONLY,
     LLM_PRIMARY_PROVIDER, LLM_FALLBACK_PROVIDERS,
     LLM_TIMEOUT_SECONDS, LLM_MAX_RETRIES
 )
@@ -18,7 +15,7 @@ logger = logging.getLogger("llm_provider.manager")
 class LLMProviderManager:
     """
     Orchestrates LLM providers with automatic fallback priority:
-    Google Gemini (Primary) -> Groq (First Backup) -> OpenRouter (Free Only)
+    Google Gemini (Primary) -> Groq (Fallback)
     """
 
     def __init__(self):
@@ -36,21 +33,11 @@ class LLMProviderManager:
             max_retries=LLM_MAX_RETRIES
         )
 
-        # 2. First Backup: Groq
+        # 2. Fallback: Groq
         self.providers["groq"] = GroqProvider(
             api_key=GROQ_API_KEY,
             model=GROQ_MODEL,
             base_url=GROQ_BASE_URL,
-            timeout_seconds=LLM_TIMEOUT_SECONDS,
-            max_retries=LLM_MAX_RETRIES
-        )
-
-        # 3. Optional Second Backup: OpenRouter
-        self.providers["openrouter"] = OpenRouterProvider(
-            api_key=OPENROUTER_API_KEY,
-            model=OPENROUTER_MODEL,
-            base_url=OPENROUTER_BASE_URL,
-            allow_free_only=OPENROUTER_ALLOW_FREE_MODELS_ONLY,
             timeout_seconds=LLM_TIMEOUT_SECONDS,
             max_retries=LLM_MAX_RETRIES
         )
@@ -62,7 +49,7 @@ class LLMProviderManager:
             if p not in order:
                 order.append(p)
         # Ensure standard fallbacks are included
-        for fallback in ["gemini", "groq", "openrouter"]:
+        for fallback in ["gemini", "groq"]:
             if fallback not in order:
                 order.append(fallback)
         return [p for p in order if p in self.providers]

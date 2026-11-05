@@ -9,12 +9,6 @@ const cleanBackendUrl = backendUrl.replace(/\/+$/, '');
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   async rewrites() {
     return [
       {

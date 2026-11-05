@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .config import (
     VECTOR_DB_PATH, SIMILARITY_THRESHOLD, TOP_K_RESULTS,
-    DATABASE_URL, VECTOR_STORE_PROVIDER
+    DATABASE_URL, VECTOR_STORE_PROVIDER, IS_PRODUCTION, ENVIRONMENT
 )
 from .models import RagCitation
 from .pgvector_store import PgVectorStore, mask_db_url
@@ -256,19 +256,45 @@ class SQLiteVectorStore:
 
 class UnifiedVectorStore:
     """
-    Unified Vector Store that prioritizes pgvector (PostgreSQL/Supabase) when available,
-    with seamless local resilience to built-in SQLite if PostgreSQL is unreachable or unconfigured.
+    Unified Vector Store that prioritizes pgvector (PostgreSQL/Supabase).
+    In development/testing (IS_PRODUCTION=False), provides seamless local resilience to built-in SQLite.
+    In production (IS_PRODUCTION=True), enforces PostgreSQL/pgvector and strictly rejects silent SQLite fallback.
     """
     def __init__(self):
         self.sqlite_store = SQLiteVectorStore()
         self.pg_store = PgVectorStore(DATABASE_URL)
         self._use_pg = False
+        self._production_db_error: Optional[str] = None
         self._check_and_init()
 
     def _check_and_init(self):
         provider = os.getenv("VECTOR_STORE_PROVIDER", VECTOR_STORE_PROVIDER).lower().strip()
         db_url = os.getenv("DATABASE_URL", self.pg_store.db_url).strip()
         self.pg_store.db_url = db_url
+
+        if IS_PRODUCTION:
+            if not db_url:
+                self._use_pg = False
+                self._production_db_error = "DATABASE_URL is not set in production. Production mandates PostgreSQL/pgvector."
+                logger.error(f"❌ [pgvector] {self._production_db_error}")
+                return
+
+            if self.pg_store.check_connection():
+                if self.pg_store.init_db():
+                    self._use_pg = True
+                    self._production_db_error = None
+                    logger.info("⚡ [pgvector] Active! Operating on PostgreSQL/Supabase with native vector extension.")
+                    return
+                else:
+                    self._use_pg = False
+                    self._production_db_error = f"Database schema initialization failed for {mask_db_url(db_url)}"
+                    logger.error(f"❌ [pgvector] {self._production_db_error}")
+                    return
+            else:
+                self._use_pg = False
+                self._production_db_error = f"Connection failed to PostgreSQL/pgvector at {mask_db_url(db_url)}"
+                logger.error(f"❌ [pgvector] {self._production_db_error}")
+                return
 
         if provider == "pgvector" and db_url:
             if self.pg_store.check_connection():
@@ -282,15 +308,38 @@ class UnifiedVectorStore:
             logger.info("ℹ️ [pgvector] DATABASE_URL not set. Active backend: SQLite Vector Store (Local fallback).")
 
     def get_active_backend_name(self) -> str:
+        if IS_PRODUCTION:
+            return "pgvector (PostgreSQL)" if self._use_pg else "pgvector (unhealthy/disconnected)"
         return "pgvector (PostgreSQL)" if self._use_pg else "SQLite Vector Store (Local fallback)"
 
     def is_pgvector_active(self) -> bool:
         return self._use_pg
 
+    def is_healthy(self) -> bool:
+        if IS_PRODUCTION:
+            return bool(self._use_pg and self.pg_store.check_connection())
+        return True
+
     def add_chunks(self, chunks: List[Dict]):
-        # Always update local sqlite store
+        if IS_PRODUCTION:
+            if not self._use_pg:
+                self._check_and_init()
+            if not self._use_pg:
+                raise RuntimeError(
+                    f"Cannot ingest chunks into production: PostgreSQL/pgvector is unavailable. "
+                    f"Details: {self._production_db_error}"
+                )
+            try:
+                self.pg_store.add_chunks(chunks)
+            except Exception as e:
+                self._use_pg = False
+                self._production_db_error = f"pgvector add_chunks error: {mask_db_url(str(e))}"
+                logger.error(f"❌ [pgvector] Ingestion error in production: {self._production_db_error}")
+                raise RuntimeError(f"Production pgvector ingestion failed: {self._production_db_error}") from e
+            return
+
+        # Development fallback logic
         self.sqlite_store.add_chunks(chunks)
-        # If pgvector is reachable, also sync to pgvector
         try:
             if self.pg_store.check_connection():
                 if self.pg_store.init_db():
@@ -300,6 +349,17 @@ class UnifiedVectorStore:
             logger.warning(f"pgvector add_chunks notice: {mask_db_url(str(e))}; chunks saved in local SQLite.")
 
     def clear(self, department_id: Optional[str] = None):
+        if IS_PRODUCTION:
+            if not self._use_pg:
+                raise RuntimeError("Cannot clear production database: PostgreSQL/pgvector is unavailable.")
+            try:
+                self.pg_store.clear(department_id)
+            except Exception as e:
+                self._use_pg = False
+                self._production_db_error = f"pgvector clear error: {mask_db_url(str(e))}"
+                raise RuntimeError(f"Production pgvector clear failed: {self._production_db_error}") from e
+            return
+
         self.sqlite_store.clear(department_id)
         if self._use_pg:
             try:
@@ -314,6 +374,25 @@ class UnifiedVectorStore:
         top_k: int = TOP_K_RESULTS,
         threshold: float = SIMILARITY_THRESHOLD
     ) -> List[RagCitation]:
+        if IS_PRODUCTION:
+            if not self._use_pg:
+                raise RuntimeError(
+                    f"Production vector store query failed: PostgreSQL/pgvector is unavailable. "
+                    f"Details: {self._production_db_error or 'Connection offline'}. "
+                    "Silent fallback to SQLite is strictly disabled in production."
+                )
+            try:
+                return self.pg_store.search(query, department_id, top_k, threshold)
+            except Exception as e:
+                self._use_pg = False
+                self._production_db_error = f"pgvector query error: {mask_db_url(str(e))}"
+                logger.error(f"❌ [pgvector] Runtime error in production: {self._production_db_error}")
+                raise RuntimeError(
+                    f"Production PostgreSQL/pgvector search failed: {self._production_db_error}. "
+                    "Silent fallback to SQLite is strictly disabled in production."
+                ) from e
+
+        # Development fallback logic
         if self._use_pg:
             try:
                 return self.pg_store.search(query, department_id, top_k, threshold)
@@ -323,6 +402,27 @@ class UnifiedVectorStore:
         return self.sqlite_store.search(query, department_id, top_k, threshold)
 
     def get_stats(self) -> Dict:
+        if IS_PRODUCTION:
+            if not self._use_pg:
+                return {
+                    "backend": "pgvector (unhealthy/disconnected)",
+                    "total_chunks": 0,
+                    "error": self._production_db_error or "PostgreSQL/pgvector disconnected in production"
+                }
+            try:
+                stats = self.pg_store.get_stats()
+                stats["backend"] = "pgvector (PostgreSQL)"
+                return stats
+            except Exception as e:
+                self._use_pg = False
+                self._production_db_error = mask_db_url(str(e))
+                return {
+                    "backend": "pgvector (unhealthy/disconnected)",
+                    "total_chunks": 0,
+                    "error": self._production_db_error
+                }
+
+        # Development mode stats
         if self._use_pg:
             try:
                 stats = self.pg_store.get_stats()

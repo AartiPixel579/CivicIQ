@@ -3,9 +3,9 @@ CivicIQ Comprehensive Test Suite
 Covers all 20 required system specifications:
 1. Gemini Primary Provider: Configured and selected by default
 2. Groq Fallback: Fallback activated when Gemini fails
-3. OpenRouter Fallback: Fallback activated when Groq fails
+3. Two-Tier Fallback Exhaustion: Handled gracefully when both Gemini and Groq fail
 4. Deterministic Grounded Synthesis: Fallback activated when all free LLMs fail
-5. OpenRouter Free Guard: Paid models rejected when free-only mode is enabled
+5. Provider Registry: Only allowed free providers (Gemini, Groq) configured
 6. Form Identification: Application form correctly identified from resident request
 7. Form Identification: Reference document correctly identified and NOT treated as application
 8. Form Identification: Fee schedule correctly identified and NOT treated as application
@@ -32,11 +32,10 @@ from pathlib import Path
 # App imports
 from backend.app.config import (
     APP_NAME, APP_TAGLINE, LLM_PRIMARY_PROVIDER,
-    OPENROUTER_ALLOW_FREE_MODELS_ONLY, GENERATED_DRAFTS_DIR
+    GENERATED_DRAFTS_DIR
 )
 from backend.app.llm_provider.base import BaseLLMProvider, LLMResponse
 from backend.app.llm_provider.manager import LLMProviderManager
-from backend.app.llm_provider.openrouter import OpenRouterFreeProvider
 from backend.app.llm_client import llm_client
 from backend.app.models.core import RagCitation
 from backend.app.services.form_matcher import form_matcher
@@ -62,7 +61,7 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
         manager = LLMProviderManager()
         self.assertEqual(manager.primary_name, "gemini")
         self.assertIn("groq", manager.fallback_names)
-        self.assertIn("openrouter", manager.fallback_names)
+        self.assertNotIn("openrouter", manager.fallback_names)
 
     # --------------------------------------------------------------------------
     # 2. Groq Fallback: Fallback activated when Gemini fails
@@ -90,10 +89,10 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
                         mock_groq.assert_called_once()
 
     # --------------------------------------------------------------------------
-    # 3. OpenRouter Fallback: Fallback activated when Groq fails
+    # 3. Two-Tier Fallback Exhaustion: Both Gemini and Groq fail -> response failed
     # --------------------------------------------------------------------------
-    def test_03_openrouter_fallback_activated_on_gemini_and_groq_failure(self):
-        """Requirement 3: When Gemini and Groq fail, OpenRouter free is invoked"""
+    def test_03_fallback_exhaustion_on_gemini_and_groq_failure(self):
+        """Requirement 3: When both Gemini and Groq fail, manager returns failed status without crash"""
         manager = LLMProviderManager()
         
         with patch.object(manager.providers["gemini"], "is_available", return_value=True):
@@ -108,22 +107,10 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
                         "generate",
                         return_value=LLMResponse(content="", model="groq-llama", provider="groq", success=False, error="429")
                     ):
-                        with patch.object(manager.providers["openrouter"], "is_available", return_value=True):
-                            with patch.object(
-                                manager.providers["openrouter"],
-                                "generate",
-                                return_value=LLMResponse(
-                                    content="OpenRouter Free response",
-                                    model="meta-llama/llama-3.2-3b-instruct:free",
-                                    provider="openrouter",
-                                    success=True
-                                )
-                            ) as mock_openrouter:
-                                resp = manager.generate("Inquiry for Edison")
-                                self.assertTrue(resp.is_fallback)
-                                self.assertEqual(resp.provider, "openrouter")
-                                self.assertEqual(resp.content, "OpenRouter Free response")
-                                mock_openrouter.assert_called_once()
+                        resp = manager.generate("Inquiry for Edison")
+                        self.assertFalse(resp.success)
+                        self.assertEqual(resp.provider, "none")
+                        self.assertIn("429", resp.error)
 
     # --------------------------------------------------------------------------
     # 4. Deterministic Grounded Synthesis: Fallback activated when all free LLMs fail
@@ -156,26 +143,14 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
             self.assertIn("fee", resp.lower())
 
     # --------------------------------------------------------------------------
-    # 5. OpenRouter Free Guard: Paid models rejected when free-only mode is enabled
+    # 5. Provider Registry: Only Gemini and Groq registered, OpenRouter absent
     # --------------------------------------------------------------------------
-    def test_05_openrouter_free_guard_rejects_paid_models(self):
-        """Requirement 5: OpenRouter free guard strictly rejects paid models without ':free'"""
-        self.assertTrue(OPENROUTER_ALLOW_FREE_MODELS_ONLY)
-        with self.assertRaises(ValueError) as cm:
-            OpenRouterFreeProvider(
-                api_key="dummy_key",
-                model="openai/gpt-4o",  # Missing :free
-                allow_free_only=True
-            )
-        self.assertIn("not a free-tier model", str(cm.exception))
-        self.assertIn(":free", str(cm.exception))
-
-        valid_free_provider = OpenRouterFreeProvider(
-            api_key="dummy_key",
-            model="meta-llama/llama-3.2-3b-instruct:free",
-            allow_free_only=True
-        )
-        self.assertEqual(valid_free_provider.model, "meta-llama/llama-3.2-3b-instruct:free")
+    def test_05_provider_registry_contains_only_gemini_and_groq(self):
+        """Requirement 5: LLMProviderManager registers only Gemini and Groq providers"""
+        manager = LLMProviderManager()
+        self.assertEqual(set(manager.providers.keys()), {"gemini", "groq"})
+        self.assertNotIn("openrouter", manager.providers)
+        self.assertEqual(manager.fallback_names, ["groq"])
 
     # --------------------------------------------------------------------------
     # 6. Form Identification: Application form correctly identified

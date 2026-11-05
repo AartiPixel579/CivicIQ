@@ -28,18 +28,18 @@ CivicIQ is split into two cleanly separated layers:
         ┌────────────────────────────────────────────────────────┐
         │               Backend (Hosted on Render)               │
         │  • FastAPI Python 3.11 Web Service                     │
-        │  • RAG Engine & LLM Provider Chain (Gemini/Groq/OpenR) │
+        │  • RAG Engine & LLM Provider Chain (Gemini/Groq)       │
         │  • Deterministic Decision Flows (Tree, Soil, Zoning)   │
         │  • ReportLab Automated PDF Form Filler                 │
         │  • Auto-indexing of 14 Official Municipal Forms        │
         └────────────────────────────┬───────────────────────────┘
                                      │
-                        Dual-Backend │ Vector Storage
+                     Database Engine │ Vector Storage
                                      ▼
         ┌────────────────────────────────────────────────────────┐
         │              Database / Vector Knowledge               │
-        │  • Primary: PostgreSQL + pgvector (Supabase/Neon/Render)│
-        │  • Resilient Fallback: SQLite Vector Store (Zero-setup)│
+        │  • Production: PostgreSQL + pgvector (Supabase)        │
+        │  • Local Dev / Tests: SQLite Vector Store              │
         └────────────────────────────────────────────────────────┘
 ```
 
@@ -52,9 +52,8 @@ Before starting, make sure you have:
 2. **Render Account**: Free account at [render.com](https://render.com).
 3. **Vercel Account**: Free account at [vercel.com](https://vercel.com).
 4. **LLM API Key** (at least one free tier key):
-   - **Google Gemini API Key** (Recommended): Get free key at [aistudio.google.com](https://aistudio.google.com).
-   - **Groq API Key** (Fast backup): Get free key at [console.groq.com](https://console.groq.com).
-   - **OpenRouter API Key** (Optional free backup): Get free key at [openrouter.ai](https://openrouter.ai).
+   - **Google Gemini API Key** (Primary): Get free key at [aistudio.google.com](https://aistudio.google.com).
+   - **Groq API Key** (Fallback): Get free key at [console.groq.com](https://console.groq.com).
 
 ---
 
@@ -96,30 +95,42 @@ If you prefer configuring manually through the Render dashboard:
 
 ## 🗄️ Step 2: Database & Vector Storage Setup
 
-CivicIQ includes a dual-mode vector storage architecture. Choose the option that fits your needs:
+### Production Requirement: Hosted PostgreSQL with pgvector (Supabase)
+In production (`ENVIRONMENT=production`), CivicIQ strictly requires PostgreSQL with the `pgvector` extension (e.g. Supabase). **Silent fallback to SQLite is disabled in production** to protect data consistency and ensure reliable vector operations across container restarts.
 
-### Option 1: Automatic SQLite Vector Storage (Zero Configuration)
-- **Setup required**: None! Leave `DATABASE_URL` empty in your Render environment variables.
-- **How it works**: CivicIQ detects that PostgreSQL is not configured and automatically activates its built-in SQLite vector database (`backend/data/vector_store.db`).
-- **Cold Boot Auto-Indexing**: Whenever the backend starts up, if the vector store has 0 chunks, it automatically reads, extracts, and indexes all 14 official Edison Township forms located in `departments/engineering/forms/` within ~2 seconds.
+1. **Create a Free pgvector Database on Supabase**:
+   - Create a free project at [supabase.com](https://supabase.com).
+   - In **Project Settings** -> **Database**, copy the **Session Pooler (port 5432)** connection string (URI mode).
+   - CivicIQ automatically enables the `pgvector` extension and initializes the HNSW vector index on startup.
+2. **Add DATABASE_URL to Render**:
+   - In your Render Web Service dashboard, go to **Environment**.
+   - Add `DATABASE_URL` with your Supabase pooler connection string:
+     ```
+     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres?sslmode=require
+     ```
+   - CivicIQ automatically normalizes `postgres://` to `postgresql://`, enforces `sslmode=require`, creates `municipal_knowledge_chunks` with HNSW vector index, and syncs official Edison Township documents.
+   - If PostgreSQL/pgvector is unavailable in production, `/api/health` reports status `unhealthy` (HTTP 503) so Render health checks flag the deployment immediately.
+
+> [!WARNING]
+> **Production Storage Policy**: SQLite is strictly prohibited as production storage. SQLite fallback is restricted exclusively to local development and offline unit tests (`ENVIRONMENT=development`).
 
 ---
 
-### Option 2: Hosted PostgreSQL with pgvector (Persistent Production)
-If you want persistent relational database storage with native PostgreSQL vector similarity:
+### Local Development / Testing Only (Zero-Config SQLite)
+For local development or running offline unit tests on your machine (`ENVIRONMENT=development`), leaving `DATABASE_URL` empty automatically uses the built-in SQLite vector database (`backend/data/vector_store.db`).
 
-1. **Create a Free pgvector Database**:
-   - **Supabase (Recommended - Free Tier)**: Create a project at [supabase.com](https://supabase.com). In **Project Settings** -> **Database**, copy the **Session Pooler (port 5432)** connection string (URI mode). CivicIQ automatically runs CREATE EXTENSION IF NOT EXISTS vector; and initializes the HNSW vector index on startup.
-   - **Neon (Free Tier)**: Create a Postgres database at [neon.tech](https://neon.tech) and copy the connection string.
-   - **Render PostgreSQL**: You can also add a PostgreSQL instance directly inside Render.
-2. **Add DATABASE_URL to Render**:
-   - In your Render Web Service dashboard, go to **Environment**.
-   - Add DATABASE_URL with your Supabase pooler connection string:
-     `
-     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres?sslmode=require
-     `
-   - CivicIQ automatically normalizes postgres:// to postgresql://, enforces sslmode=require, creates municipal_knowledge_chunks with HNSW vector index, and syncs official Edison Township documents.
-   - If Supabase is ever unreachable or paused, CivicIQ seamlessly operates on its built-in SQLite vector database without downtime or crashes.
+---
+
+## 💾 In-Memory Session Storage & Process Lifecycle
+
+CivicIQ maintains conversational history (`CHAT_HISTORIES`) and active interactive form-filling sessions (`form_session_service`) in server memory for maximum responsiveness during live resident sessions.
+
+> [!IMPORTANT]
+> **Process Restart Limitation**:
+> - Chat histories and interactive form sessions are stored in process memory.
+> - They **do NOT persist** across backend service restarts, redeployments, or container cold-boots (such as Render free-tier idle spin-downs).
+> - If the backend container restarts, any unfinished in-memory chat or form session will reset, and residents must start a new session.
+> - Official municipal documents and vector knowledge are persistently stored in Supabase PostgreSQL and are unaffected by container restarts.
 
 ---
 
@@ -161,8 +172,8 @@ After Vercel assigns your live domain (e.g., `https://civiciq.vercel.app`):
 | Variable | Required | Default Value | Description |
 | :--- | :---: | :--- | :--- |
 | `ENVIRONMENT` | Yes | `production` | Deployment mode (`production` enables strict CORS and admin protection). |
-| `DATABASE_URL` | Optional | *(empty)* | Connection URI for PostgreSQL + pgvector. If empty, SQLite is used automatically. |
-| `VECTOR_STORE_PROVIDER` | No | `pgvector` | Vector provider engine (`pgvector` with automatic SQLite fallback). |
+| `DATABASE_URL` | Yes (Production) | *(empty)* | Connection URI for PostgreSQL + pgvector (Supabase). Strictly required in production. SQLite fallback is disabled in production. |
+| `VECTOR_STORE_PROVIDER` | No | `pgvector` | Vector provider engine (`pgvector`). |
 | `ALLOWED_ORIGINS` | Yes | *(empty)* | Comma-separated list of allowed frontend domains (e.g. `https://civiciq.vercel.app`). |
 | `ADMIN_API_KEY` | Yes | *(auto-generated)* | 32+ character secret for protecting `/api/ingest`. Auto-generated by `render.yaml`. |
 | `LLM_PRIMARY_PROVIDER` | No | `gemini` | Primary AI provider (`gemini` or `groq`). |

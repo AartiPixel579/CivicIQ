@@ -248,6 +248,7 @@ python -m unittest discover -s backend/tests -p "test_*.py"
 
 - **Engineering Department Scope**: The assistant is currently focused strictly on Edison Township Department of Engineering services.
 - **Active Workflow Scope**: Multi-turn procedural decision workflows are currently implemented for Tree Removal and Soil Movement. Other engineering services provide document access and catalog summaries, but interactive decision flows remain unconfigured.
+- **In-Memory Session Storage**: Multi-turn chat history and interactive form session states are held in server process memory and do not persist across container restarts or cold-boots. Residents who disconnect or experience a service restart start a fresh session.
 - **Scanned Document OCR**: Scanned historical PDFs in the Document Center are cataloged, but full text search for image-only scans requires manual transcription or future OCR integration.
 - **Advisory Guidance**: CivicIQ provides procedural guidance and form preparation assistance. It does not replace formal regulatory reviews, official permits, or inspections by the Township of Edison.
 

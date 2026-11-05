@@ -3,7 +3,7 @@ import re
 import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Query, Header, Depends
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -86,6 +86,10 @@ def on_startup():
     """
     try:
         vector_store._check_and_init()
+        if IS_PRODUCTION and not vector_store.is_pgvector_active():
+            logger.error("❌ Startup check: Production PostgreSQL/pgvector database is unreachable or unconfigured.")
+            return
+
         stats = vector_store.get_stats()
         if stats.get("total_chunks", 0) == 0:
             logger.info("Vector store is empty on startup. Triggering automatic initial ingestion...")
@@ -102,15 +106,24 @@ def on_startup():
 @app.get("/api/health")
 def health_check():
     stats = vector_store.get_stats()
-    return {
-        "status": "healthy",
+    is_healthy = vector_store.is_healthy()
+    
+    health_data = {
+        "status": "healthy" if is_healthy else "unhealthy",
         "app": APP_NAME,
         "version": APP_VERSION,
         "municipality": MUNICIPALITY_NAME,
+        "environment": ENVIRONMENT,
         "vector_backend": stats.get("backend", "pgvector"),
         "departments_loaded": len(registry.departments),
-        "vector_store_chunks": stats["total_chunks"]
+        "vector_store_chunks": stats.get("total_chunks", 0)
     }
+
+    if not is_healthy:
+        health_data["error"] = stats.get("error", "Production database (PostgreSQL/pgvector) is unavailable.")
+        return JSONResponse(status_code=503, content=health_data)
+
+    return health_data
 
 @app.get("/api/departments")
 def list_departments():

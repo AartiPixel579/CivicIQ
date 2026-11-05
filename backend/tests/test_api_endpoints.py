@@ -5,6 +5,7 @@ official PDF serving, admin authentication, and anti-hallucination guardrails.
 """
 
 import unittest
+from unittest.mock import patch
 from backend.app.main import (
     health_check, list_departments, get_department, 
     chat_endpoint, start_flow_endpoint, advance_flow_step, 
@@ -13,6 +14,7 @@ from backend.app.main import (
 )
 from backend.app.models import ChatRequest, FlowStartRequest, FlowStepRequest
 from backend.app.config import ADMIN_API_KEY
+from backend.app.vector_store import vector_store
 from fastapi import HTTPException
 
 class TestApiEndpoints(unittest.TestCase):
@@ -119,6 +121,27 @@ class TestApiEndpoints(unittest.TestCase):
         res = trigger_ingestion(x_admin_key=ADMIN_API_KEY)
         self.assertEqual(res["status"], "success")
         print("[API TEST] Admin ingest key protection verified.")
+
+    def test_09_production_pgvector_enforcement(self):
+        """Enforce PostgreSQL/pgvector in production: fails fast without silent SQLite fallback."""
+        with patch("backend.app.vector_store.IS_PRODUCTION", True):
+            with patch.object(vector_store, "is_pgvector_active", return_value=False):
+                with self.assertRaises(RuntimeError) as cm:
+                    vector_store.search("tree removal")
+                self.assertIn("Silent fallback to SQLite is strictly disabled in production", str(cm.exception))
+
+    def test_10_production_health_check_unhealthy_when_db_offline(self):
+        """Health check returns 503 / unhealthy when required production database is unavailable."""
+        with patch("backend.app.main.IS_PRODUCTION", True):
+            with patch.object(vector_store, "is_healthy", return_value=False):
+                from fastapi.responses import JSONResponse
+                res = health_check()
+                self.assertIsInstance(res, JSONResponse)
+                self.assertEqual(res.status_code, 503)
+                import json
+                body = json.loads(res.body.decode())
+                self.assertEqual(body["status"], "unhealthy")
+                print("[API TEST] Production unhealthy status code (503) verified when database is offline.")
 
 if __name__ == "__main__":
     unittest.main()

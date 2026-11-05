@@ -199,18 +199,36 @@ Once both services are deployed, perform these checks:
 
 - [ ] **1. Backend Health Check**:
   Visit `https://<your-render-url>/api/health` in your browser.
-  Expected output:
+  
+  **Expected Production Response (Healthy)**:
   ```json
   {
     "status": "healthy",
     "app": "CivicIQ",
     "version": "2.2.0",
     "municipality": "Township of Edison, New Jersey",
-    "vector_backend": "SQLite Vector Store (Local fallback)" or "pgvector (PostgreSQL)",
+    "environment": "production",
+    "vector_backend": "pgvector (PostgreSQL)",
     "departments_loaded": 1,
-    "vector_store_chunks": 70
+    "vector_store_chunks": 125
   }
   ```
+
+  **If PostgreSQL/pgvector is Offline (Unhealthy — HTTP 503)**:
+  ```json
+  {
+    "status": "unhealthy",
+    "app": "CivicIQ",
+    "version": "2.2.0",
+    "municipality": "Township of Edison, New Jersey",
+    "environment": "production",
+    "vector_backend": "pgvector (unhealthy/disconnected)",
+    "departments_loaded": 1,
+    "vector_store_chunks": 0,
+    "error": "Connection failed to PostgreSQL/pgvector at ..."
+  }
+  ```
+  *(Render will automatically flag the service as unhealthy if 503 is returned, preventing traffic to a degraded instance).*
 
 - [ ] **2. LLM Provider Status**:
   Visit `https://<your-render-url>/api/llm/status`.
@@ -218,7 +236,7 @@ Once both services are deployed, perform these checks:
 
 - [ ] **3. Document Inventory & Forms**:
   Visit `https://<your-render-url>/api/document-inventory`.
-  Verify that the 14 official Edison Township Engineering documents are listed.
+  Verify that the official Edison Township Engineering documents are listed.
 
 - [ ] **4. Frontend Branding & Logo**:
   Open your Vercel URL `https://<your-vercel-domain>.vercel.app`.
@@ -234,7 +252,9 @@ Once both services are deployed, perform these checks:
 
 - [ ] **7. Soil Import Flow**:
   Type: `"I want to import 20 cubic yards of soil"`
-  Verify CivicIQ explains that importing under 25 cubic yards does not require a soil permit (only an Engineering plot plan review).
+  Verify CivicIQ explains that importing 10 cubic yards or more requires an approved Soil Importation Permit under Township Chapter 31.
+  Type: `"I want to import 5 cubic yards of soil"`
+  Verify CivicIQ explains that importing under 10 cubic yards does not require a municipal soil permit.
 
 - [ ] **8. Guided PDF Application Generator**:
   Type: `"I want to remove a tree"`, follow the quick answers, and click **Download Completed Application**.

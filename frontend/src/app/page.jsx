@@ -37,6 +37,7 @@ export default function Home() {
       };
       setMessages([welcomeMsg]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 2. Send Message (with conversation context)

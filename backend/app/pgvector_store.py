@@ -35,6 +35,7 @@ class PgVectorStore:
         self.db_url = db_url
         self.dim = dim
         self._connected = False
+        self._init_error: Optional[str] = None
 
     def _normalize_db_url(self, raw_url: str) -> str:
         """
@@ -76,18 +77,17 @@ class PgVectorStore:
             logger.debug(f"pgvector connection test note: {mask_db_url(str(e))}")
             return False
 
-    def init_db(self):
+    def init_db(self) -> bool:
         """Initializes pgvector extension and creates municipal chunks schema."""
         active_url = self._normalize_db_url(self.db_url or os.getenv("DATABASE_URL", ""))
         if not active_url:
+            self._init_error = "DATABASE_URL is not configured."
             return False
         try:
+            # Transaction 1: Schema creation (extension, table, base indexes)
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    # 1. Enable pgvector extension
                     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-
-                    # 2. Create chunks table with vector column
                     cur.execute(f"""
                         CREATE TABLE IF NOT EXISTS municipal_knowledge_chunks (
                             id VARCHAR(64) PRIMARY KEY,
@@ -102,34 +102,51 @@ class PgVectorStore:
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
-
-                    # 3. Create indices (HNSW cosine index for sub-millisecond retrieval)
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_dept ON municipal_knowledge_chunks(department_id);")
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_url ON municipal_knowledge_chunks(url);")
-                    try:
+                conn.commit()
+
+            # Transaction 2: Vector index creation (HNSW with graceful IVFFlat fallback)
+            # Table is safely committed above, so an HNSW rollback will never drop the table.
+            with self._get_connection() as conn:
+                hnsw_succeeded = False
+                try:
+                    with conn.cursor() as cur:
                         cur.execute("""
                             CREATE INDEX IF NOT EXISTS idx_chunks_hnsw 
                             ON municipal_knowledge_chunks 
                             USING hnsw (embedding vector_cosine_ops);
                         """)
-                    except Exception as idx_err:
-                        # Transaction rollback required before executing fallback on failed statement
-                        conn.rollback()
-                        logger.warning(f"HNSW index creation note: {idx_err}; falling back to IVFFlat index.")
+                    conn.commit()
+                    hnsw_succeeded = True
+                    logger.info("⚡ [pgvector] Native HNSW vector index verified.")
+                except Exception as hnsw_err:
+                    conn.rollback()
+                    logger.warning(f"ℹ️ [pgvector] HNSW index creation note ({mask_db_url(str(hnsw_err))}); falling back to IVFFlat index.")
+
+                if not hnsw_succeeded:
+                    try:
                         with conn.cursor() as cur_fallback:
                             cur_fallback.execute("""
                                 CREATE INDEX IF NOT EXISTS idx_chunks_ivfflat 
                                 ON municipal_knowledge_chunks 
                                 USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
                             """)
+                        conn.commit()
+                        logger.info("⚡ [pgvector] IVFFlat vector index verified as fallback.")
+                    except Exception as ivf_err:
+                        conn.rollback()
+                        logger.warning(f"⚠️ [pgvector] IVFFlat index creation note ({mask_db_url(str(ivf_err))}); exact k-NN vector scan remains operational.")
 
-                conn.commit()
             self._connected = True
+            self._init_error = None
             logger.info("pgvector schema and vector extension verified successfully.")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize pgvector database: {mask_db_url(str(e))}")
+            err_msg = f"Failed to initialize pgvector database: {mask_db_url(str(e))}"
+            logger.error(err_msg)
             self._connected = False
+            self._init_error = err_msg
             return False
 
     def clear(self, department_id: Optional[str] = None):

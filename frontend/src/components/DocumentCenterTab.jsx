@@ -18,6 +18,7 @@ export const DocumentCenterTab = ({ onStartFlow, onPreviewPdf }) => {
 
   useEffect(() => {
     fetchDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, searchQuery]);
 
   const fetchDocuments = async () => {
@@ -128,8 +129,8 @@ export const DocumentCenterTab = ({ onStartFlow, onPreviewPdf }) => {
         ) : documents.length === 0 ? (
           <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-slate-500">
             <FileText className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-            <p className="text-xs font-semibold">No documents found matching "{searchQuery}".</p>
-            <p className="text-[11px] text-slate-400 mt-1">Try clearing your search query or selecting "All" categories.</p>
+            <p className="text-xs font-semibold">No documents found matching &quot;{searchQuery}&quot;.</p>
+            <p className="text-[11px] text-slate-400 mt-1">Try clearing your search query or selecting &quot;All&quot; categories.</p>
           </div>
         ) : (
           documents.map((doc) => (

@@ -77,5 +77,34 @@ class TestPgVectorImplementation(unittest.TestCase):
         self.assertGreater(len(results), 0)
         self.assertIsNotNone(results[0].title)
 
+    def test_08_init_db_hnsw_fallback_to_ivfflat_transaction_safety(self):
+        """Verifies that HNSW failure safely rolls back only index transaction and commits IVFFlat on existing table."""
+        from unittest.mock import MagicMock, patch
+
+        pg = PgVectorStore("postgresql://postgres:secret@aws-0.supabase.com:5432/postgres")
+        
+        mock_conn1 = MagicMock()
+        mock_cur1 = MagicMock()
+        mock_conn1.__enter__.return_value = mock_conn1
+        mock_conn1.cursor.return_value.__enter__.return_value = mock_cur1
+
+        mock_conn2 = MagicMock()
+        mock_cur2 = MagicMock()
+        mock_conn2.__enter__.return_value = mock_conn2
+        mock_conn2.cursor.return_value.__enter__.return_value = mock_cur2
+
+        # First call in conn2 (HNSW) raises error; second call (IVFFlat) succeeds
+        mock_cur2.execute.side_effect = [Exception("HNSW memory limit"), None]
+
+        with patch.object(pg, "_get_connection", side_effect=[mock_conn1, mock_conn2]):
+            success = pg.init_db()
+            self.assertTrue(success)
+            # Verify transaction 1 committed table
+            mock_conn1.commit.assert_called_once()
+            # Verify transaction 2 rolled back HNSW, then committed IVFFlat
+            mock_conn2.rollback.assert_called_once()
+            mock_conn2.commit.assert_called_once()
+            print("[PGVECTOR TEST] HNSW to IVFFlat transaction safety verified: table preserved, IVFFlat committed.")
+
 if __name__ == "__main__":
     unittest.main()

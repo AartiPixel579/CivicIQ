@@ -158,19 +158,18 @@ Open `.env` in your local text editor and fill in your private API keys:
 # Municipality Metadata
 MUNICIPALITY_NAME=Township of Edison, New Jersey
 
-# Database & Vector Store
-# Leave empty to use the built-in SQLite vector store automatically:
+# Vector Store (In local development, leave empty to use built-in SQLite)
 DATABASE_URL=
 VECTOR_STORE_PROVIDER=pgvector
 
 # Primary AI Provider: Google Gemini (Get free key at https://aistudio.google.com/)
 LLM_PRIMARY_PROVIDER=gemini
-GEMINI_API_KEY=your_gemini_api_key
+GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-1.5-flash
 
 # Fallback AI Provider: Groq (Get free key at https://console.groq.com/)
 LLM_FALLBACK_PROVIDERS=groq
-GROQ_API_KEY=your_groq_api_key
+GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=llama-3.3-70b-versatile
 
 # Security & CORS
@@ -230,16 +229,18 @@ python -m unittest discover -s backend/tests -p "test_*.py"
 ```
 
 ### Test Coverage Summary:
-- **Test Count**: 98 tests
+- **Test Count**: 144 tests
 - **Result**: `OK (100% passing)`
 - **Key Verified Scenarios**:
   - Tree Removal conversational emergency flow and form packet delivery.
   - Senior fee waiver qualification at age 62 or older (per official form).
   - Ambiguity resolution for short queries (e.g., *"removal"* clarifying tree vs. soil).
   - Context retention across multi-turn exchanges.
+  - Soil movement volume thresholds (10 cubic yards per Township Chapter 31).
   - Unconfigured service isolation for Street Opening, Zoning, Site Improvement, and Sewer.
   - Out-of-context guardrails returning official municipal redirection.
   - Multi-LLM provider failover (Gemini $\to$ Groq $\to$ Grounded Retrieval Synthesis).
+  - Production database enforcement and unhealthy (HTTP 503) health check when database is offline.
   - Vector store indexing and query operations across pgvector and SQLite.
 
 ---

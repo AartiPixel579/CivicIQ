@@ -87,6 +87,59 @@ class TestRagGroundingAndTrust(unittest.TestCase):
         self.assertEqual(len(res.citations), 0)
         self.assertNotIn("tree removal", res.answer.lower())
 
+    def test_07_small_talk_greetings_and_general_questions_never_trigger_permits(self):
+        from backend.app.main import chat_endpoint
+        from backend.app.models.core import ChatRequest
+
+        small_talk_inputs = [
+            "hi",
+            "hello",
+            "how are you?",
+            "how are you doing?",
+            "thanks",
+            "thank you",
+            "bye",
+            "good morning",
+        ]
+        for idx, msg in enumerate(small_talk_inputs):
+            res = chat_endpoint(ChatRequest(
+                session_id=f"test_smalltalk_{idx}",
+                message=msg,
+                department_id="engineering",
+            ))
+            self.assertEqual(res.mode, "rag", f"Unexpected mode for {msg!r}")
+            self.assertEqual(len(res.citations or []), 0, f"Small talk {msg!r} must not return citations")
+            self.assertIsNone(res.form_packet, f"Small talk {msg!r} must not attach a permit packet")
+            self.assertNotIn("tree removal", res.message.lower())
+            self.assertNotIn("$25", res.message)
+            self.assertNotIn("localhost:3000", res.message)
+
+        # Exact reproduction: 'hi' -> 'how are you' in the same session
+        sid = "test_hi_then_how_are_you"
+        r1 = chat_endpoint(ChatRequest(session_id=sid, message="hi", department_id="engineering"))
+        self.assertIn("welcome to civiciq", r1.message.lower())
+        r2 = chat_endpoint(ChatRequest(session_id=sid, message="how are you", department_id="engineering"))
+        self.assertIsNone(r2.form_packet)
+        self.assertEqual(len(r2.citations or []), 0)
+        self.assertNotIn("tree removal", r2.message.lower())
+        self.assertNotIn("$25", r2.message)
+
+        # Unrelated general questions must not retrieve or display Engineering permits
+        for g_idx, gen_q in enumerate(["What is the capital of France?", "Tell me a funny joke"]):
+            rg = chat_endpoint(ChatRequest(session_id=f"test_gen_{g_idx}", message=gen_q, department_id="engineering"))
+            self.assertIsNone(rg.form_packet)
+            self.assertEqual(len(rg.citations or []), 0)
+            self.assertNotIn("localhost:3000", rg.message)
+
+        # Actual Engineering query still activates Tree Removal workflow
+        rt = chat_endpoint(ChatRequest(
+            session_id="test_tree_workflow_still_works",
+            message="How do I remove a tree?",
+            department_id="engineering",
+        ))
+        self.assertEqual(rt.mode, "flow")
+        self.assertEqual(rt.active_flow_id, "tree_removal_flow")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -766,23 +766,60 @@ class ServiceIntentService:
     ) -> ServiceIntentResult:
         q = (query or "").lower().strip()
 
-        # 0. Greeting check: "hlo", "hi", "hello", "hey", "good morning", "good afternoon", etc.
-        is_greeting = any(re.match(pat, q) for pat in [
-            r'^(hlo|hello|hi|hey|heyy|greetings|howdy|hola|namaste)\b',
-            r'^(good\s+(morning|afternoon|evening|day))\b'
-        ]) and not any(w in q for w in [
-            "tree", "soil", "dirt", "flood", "grading", "sewer", "site", "road", "street", "permit", "application", "form", "cost", "fee", "remove", "removal", "import", "export", "excavat"
+        # 0. Greeting & small-talk check: never trigger municipal workflows or history bleed
+        has_domain_keyword = any(w in q for w in [
+            "tree", "soil", "dirt", "flood", "grading", "sewer", "site", "road", "street",
+            "permit", "application", "form", "cost", "fee", "remove", "removal", "import",
+            "export", "excavat", "zoning", "subdivision", "pool", "deck", "culvert", "stormwater"
         ])
-        if is_greeting:
-            return ServiceIntentResult(
-                service_id="greeting",
-                service_name="Greeting",
-                confidence=1.0,
-                is_ambiguous=False,
-                intent_type="general_info",
-                detail_type="greeting",
-                has_flowchart=False
-            )
+        if not has_domain_keyword:
+            is_greeting = any(re.match(pat, q) for pat in [
+                r'^(hlo|hello|hi|hey|heyy|greetings|howdy|hola|namaste)\b',
+                r'^(good\s+(morning|afternoon|evening|day))\b'
+            ])
+            if is_greeting:
+                return ServiceIntentResult(
+                    service_id="greeting",
+                    service_name="Greeting",
+                    confidence=1.0,
+                    is_ambiguous=False,
+                    intent_type="general_info",
+                    detail_type="greeting",
+                    has_flowchart=False
+                )
+
+            if re.match(r"^(how are you(\s+doing)?|how r u|how's it going|how is it going|what's up|whats up)[\s?!.]*$", q):
+                return ServiceIntentResult(
+                    service_id="small_talk",
+                    service_name="Small Talk",
+                    confidence=1.0,
+                    is_ambiguous=False,
+                    intent_type="general_info",
+                    detail_type="how_are_you",
+                    has_flowchart=False
+                )
+
+            if re.match(r"^(thanks|thank you|thank u|thx|ty|many thanks|thanks a lot|appreciate it)[\s!.]*$", q):
+                return ServiceIntentResult(
+                    service_id="small_talk",
+                    service_name="Small Talk",
+                    confidence=1.0,
+                    is_ambiguous=False,
+                    intent_type="general_info",
+                    detail_type="thanks",
+                    has_flowchart=False
+                )
+
+            if re.match(r"^(bye|goodbye|good bye|see you|see ya|take care|have a (great|nice|good) day|good night)[\s!.]*$", q):
+                return ServiceIntentResult(
+                    service_id="small_talk",
+                    service_name="Small Talk",
+                    confidence=1.0,
+                    is_ambiguous=False,
+                    intent_type="general_info",
+                    detail_type="bye",
+                    has_flowchart=False
+                )
         
         # 1. Out-of-context check
         for pat in OUT_OF_CONTEXT_PATTERNS:

@@ -1065,8 +1065,24 @@ class GroundedRagEngine:
             return RagResult(
                 answer="Hello! Welcome to CivicIQ. How can I help you with an Edison Township municipal service today?",
                 citations=[],
-                grounded=True,
+                grounded=False,
                 query=query
+            )
+
+        if intent_res.service_id == "small_talk":
+            small_talk_replies = {
+                "how_are_you": "I'm doing well, thank you for asking! How can I help you with an Edison Township Engineering service or permit today?",
+                "thanks": "You're welcome! Let me know if you need help with any Edison Township Engineering permits or services.",
+                "bye": "Goodbye! Feel free to reach out anytime you have questions about Edison Township Engineering services.",
+            }
+            return RagResult(
+                answer=small_talk_replies.get(
+                    intent_res.detail_type,
+                    "Hello! How can I help you with an Edison Township Engineering service today?",
+                ),
+                citations=[],
+                grounded=False,
+                query=query,
             )
 
         if intent_res.service_id == "out_of_context":

@@ -47,38 +47,60 @@ app = FastAPI(
     description=f"Citizen procedural assistant and grounded knowledge portal for {MUNICIPALITY_NAME}."
 )
 
-# Configure CORS origins based on environment
-default_dev_origins = [
+DEFAULT_DEV_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
 
-cors_origins = default_dev_origins.copy()
-if ALLOWED_ORIGINS:
-    cors_origins.extend(ALLOWED_ORIGINS)
 
-# Deduplicate origins preserving order
-cors_origins = list(dict.fromkeys(cors_origins))
+def resolve_cors_origins(is_production: bool, allowed_origins: List[str]) -> List[str]:
+    """
+    Resolves allowed CORS origins strictly by environment:
+    - Production/staging: ONLY explicitly configured valid http(s) origins in ALLOWED_ORIGINS
+      (no localhost, no wildcard '*', no *.vercel.app regex, no malformed origins).
+    - Development: localhost dev origins + any explicit ALLOWED_ORIGINS.
+    """
+    if is_production:
+        cleaned = []
+        for raw in (allowed_origins or []):
+            origin = (raw or "").strip().rstrip("/")
+            if not origin or "*" in origin or origin.lower() == "null":
+                continue
+            if origin.startswith(("http://", "https://")):
+                cleaned.append(origin)
+        return list(dict.fromkeys(cleaned))
 
-if "*" in cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_origin_regex=r"https://.*\.vercel\.app",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    combined = DEFAULT_DEV_ORIGINS.copy()
+    if allowed_origins:
+        combined.extend([o.strip().rstrip("/") for o in allowed_origins if o and o.strip()])
+    return list(dict.fromkeys(combined))
+
+
+def apply_cors_middleware(target_app: FastAPI, is_production: bool, allowed_origins: List[str]) -> List[str]:
+    """Applies strict CORS middleware without wildcard *.vercel.app regex."""
+    origins = resolve_cors_origins(is_production=is_production, allowed_origins=allowed_origins)
+    if not is_production and "*" in origins:
+        target_app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        target_app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    return origins
+
+
+apply_cors_middleware(app, is_production=IS_PRODUCTION, allowed_origins=ALLOWED_ORIGINS)
 
 @app.on_event("startup")
 def on_startup():

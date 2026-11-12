@@ -188,12 +188,10 @@ CANONICAL_SERVICES = {
 SERVICE_SPECIFIC_DETAILS: Dict[str, Dict[str, str]] = {
     "tree_removal": {
         "fee": (
-            "The standard filing fee is $25 for a single residential lot. "
-            "The fee waiver is available to eligible senior citizens aged 62 or older, "
-            "subject to the proof-of-age requirement stated in the application. "
-            "For removals associated with Planning/Zoning Board approval or a subdivision, the fee is $200.\n\n"
+            "The standard filing fee is $25 for a single residential lot (per the Tree Permit Application dated 3.23.21), waived for eligible senior citizens aged 62+, and $200 for Planning/Zoning Board approval or a subdivision.\n\n"
             "• **Senior Citizen Waiver:** Waived for residents aged 62 or older with valid proof of age.\n"
             "• **Board Approval / Subdivision:** $200 filing fee for board-approved removals.\n\n"
+            "*(Note: Because the official Tree Permit Application PDF dated 3.23.21 is a scanned image, please confirm current fee amounts with the Division of Engineering before submitting payment.)*\n\n"
             "Source: [Township of Edison Tree Permit Application](/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf)"
         ),
         "documents": (

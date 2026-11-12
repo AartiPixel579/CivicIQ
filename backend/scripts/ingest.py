@@ -99,7 +99,7 @@ EDISON_OFFICIAL_CATALOG = [
         "service": "plot_grading",
         "visibility": "public",
         "verification_status": "verified",
-        "original_url": "https://www.edisonnj.org/document_center/Requirements%20for%20Plot%20Grading%20Plans%20-%20Minor%20Development.pdf",
+        "original_url": "https://www.edisonnj.org/document_center/Requirments_for_plot_grading_plans.pdf?t=202409111411520",
         "local_filename": "Requirements_for_Plot_Grading_Plans_Minor_Development.pdf",
         "workflow_id": None,
         "official_summary": "Official Edison Township Requirements for Plot Grading Plans on Minor Developments. Mandatory for new dwellings, additions, in-ground pools, retaining walls, or projects disturbing 1,250+ sq.ft. or adding 500+ sq.ft. impervious coverage. Must be prepared, signed, and sealed by a NJ licensed PE or PLS, overlaid on certified boundary survey, with contours, spot elevations, on-site stormwater infiltration (seepage pits per Title 34), and soil erosion sediment control measures.",

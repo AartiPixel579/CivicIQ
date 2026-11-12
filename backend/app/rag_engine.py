@@ -410,6 +410,31 @@ class GroundedRagEngine:
 
         return None
 
+    def _has_verified_emergency_tree_evidence(self, department_id: str = "engineering") -> bool:
+        """
+        Verifies that the active knowledge base contains official source evidence
+        authorizing emergency tree removal (e.g. Permit_Flow_Charts.pdf Page 3).
+        """
+        chunks = vector_store.search(
+            query="emergency tree removal dead dying eminent danger concurrent permit",
+            department_id=department_id,
+            top_k=6,
+            threshold=0.05,
+        )
+        for c in chunks:
+            txt = (c.title + " " + c.excerpt).lower()
+            if ("tree" in txt) and any(k in txt for k in ("concurrent", "eminent danger", "imminent danger", "dead/dying", "dead or dying", "arborist")):
+                return True
+        return False
+
+    def _build_unverified_emergency_tree_msg(self) -> str:
+        return (
+            "I could not verify an official emergency tree removal exemption or immediate-removal procedure "
+            "from the currently available official Township of Edison documents.\n\n"
+            "Please contact the **Township of Edison Division of Engineering** at `(732) 248-7288` or visit "
+            "https://www.edisonnj.org/document_center/index.php before removing a tree or relying on an assumed exemption."
+        )
+
     def handle_tree_removal_flow(
         self,
         query: str,
@@ -552,8 +577,12 @@ class GroundedRagEngine:
             ])
 
             if is_valid_hazard:
+                if not self._has_verified_emergency_tree_evidence("engineering"):
+                    return (self._build_unverified_emergency_tree_msg(), None)
                 msg = (
-                    "Under Edison Township guidelines, emergency removal is permitted. If it's an emergency, take photos of the hazardous tree or obtain a certified letter from a licensed arborist/forester confirming that it is dead, dying or an imminent danger. You can then safely remove the tree immediately and submit the Tree Removal Permit Application concurrently with removal via the Edison Document Center."
+                    "Under Edison Township guidelines (Permit Flow Charts, Page 3), emergency removal is permitted. "
+                    "If it's an emergency, take photographic proof of the hazardous tree or obtain a certified letter from a licensed arborist/forester confirming that it is dead, dying, or an eminent/imminent danger. "
+                    "You can then safely remove the tree immediately and submit the Tree Removal Permit Application concurrently with removal via the Edison Document Center."
                 )
                 return (msg, self.match_official_form_packet("tree removal", force=True))
             else:
@@ -994,12 +1023,28 @@ class GroundedRagEngine:
                 or "permit_flow_charts" in c.url.lower()
             ):
                 continue
-            c_doc_name = (c.title + " " + (getattr(c, "service", "") or "")).lower()
+            c_doc_name = (c.title + " " + (getattr(c, "service", "") or "") + " " + c.url).lower()
             if service_id == "tree_removal":
-                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "soil"]):
+                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "soil", "plot grading", "plot_grading", "site improvement", "sip", "flood"]):
+                    continue
+                if not any(w in c_doc_name for w in ["tree", "arborist", "conservation"]):
                     continue
             elif service_id in ["soil_import", "soil_export", "soil_movement"]:
-                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "tree"]):
+                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "tree", "site improvement", "sip", "flood"]):
+                    continue
+                if "soil" not in c_doc_name:
+                    continue
+            elif service_id == "plot_grading":
+                if not any(w in c_doc_name for w in ["grading", "plot"]):
+                    continue
+            elif service_id == "site_improvement":
+                if not any(w in c_doc_name for w in ["site improvement", "sip"]):
+                    continue
+            elif service_id == "sewer_connection":
+                if "sewer" not in c_doc_name:
+                    continue
+            elif service_id == "flood_zone":
+                if "flood" not in c_doc_name:
                     continue
             base_url = c.url.split("#")[0].split("?")[0]
             if base_url in seen_urls:
@@ -1176,9 +1221,10 @@ class GroundedRagEngine:
         if intent_res.detail_type not in ["procedure", "emergency"]:
             detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type, history=history)
             if detail_msg:
-                citations = self._retrieve_filtered_citations(query, department_id=dept, service_id=intent_res.service_id, top_k=4)
-                if not citations and intent_res.service_id and intent_res.service_id != "other_engineering":
-                    # Short follow-ups (e.g. "I am 26", "What documents?", "How much?") need the resolved service context for vector retrieval
+                is_short_followup = len((query or "").split()) <= 3 and intent_res.service_id and intent_res.service_id != "other_engineering"
+                search_q = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}" if is_short_followup else query
+                citations = self._retrieve_filtered_citations(search_q, department_id=dept, service_id=intent_res.service_id, top_k=4)
+                if not citations and not is_short_followup and intent_res.service_id and intent_res.service_id != "other_engineering":
                     svc_query = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}"
                     citations = self._retrieve_filtered_citations(svc_query, department_id=dept, service_id=intent_res.service_id, top_k=4)
                 packet = self.match_official_form_packet(query, history=history, force=False)

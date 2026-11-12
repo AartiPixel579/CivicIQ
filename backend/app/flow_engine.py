@@ -1,6 +1,7 @@
 import re
 import logging
 from typing import Dict, Optional, Tuple, Any
+from urllib.parse import quote
 from .department_loader import registry
 from .models import (
     FlowDefinition, FlowStep, FlowOption, FormIssuanceDetails, 
@@ -41,7 +42,8 @@ class FlowEngine:
         if step.type != "form_issuance":
             return None
         dept_config = registry.get_department(session.department_id)
-        download_url = f"/api/forms/{session.department_id}/{step.form_file}"
+        safe_file = quote(step.form_file or "document.pdf")
+        download_url = f"/api/forms/{session.department_id}/{safe_file}"
         sub_routing = step.submission_routing
         if not sub_routing and dept_config:
             sub_routing = SubmissionRouting(

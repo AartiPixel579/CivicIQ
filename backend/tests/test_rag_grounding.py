@@ -140,6 +140,73 @@ class TestRagGroundingAndTrust(unittest.TestCase):
         self.assertEqual(rt.mode, "flow")
         self.assertEqual(rt.active_flow_id, "tree_removal_flow")
 
+    def test_08_emergency_tree_removal_evidence_and_unverified_refusal(self):
+        from backend.app.main import chat_endpoint
+        from backend.app.models.core import ChatRequest
+
+        # 1. With active official Permit_Flow_Charts.pdf evidence in KB -> emergency permitted + URL-encoded PDF
+        sid = "test_emg_verified"
+        chat_endpoint(ChatRequest(session_id=sid, message="How do I remove a tree?", department_id="engineering"))
+        r_emg = chat_endpoint(ChatRequest(
+            session_id=sid,
+            message="Yes, it is an emergency (dead, dying, or imminent danger)",
+            department_id="engineering",
+        ))
+        self.assertEqual(r_emg.mode, "flow")
+        self.assertIsNotNone(r_emg.form_packet)
+        self.assertEqual(
+            r_emg.form_packet.pdf_download_url,
+            "/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf",
+        )
+        self.assertNotIn("localhost", r_emg.message.lower())
+        self.assertNotIn("127.0.0.1", r_emg.message)
+
+        # 2. When no official emergency procedure is found in KB -> must NOT claim immediate removal is permitted
+        sid_unv = "test_emg_unverified"
+        chat_endpoint(ChatRequest(session_id=sid_unv, message="How do I remove a tree?", department_id="engineering"))
+        with patch("backend.app.rag_engine.vector_store.search", return_value=[]):
+            r_unv = chat_endpoint(ChatRequest(
+                session_id=sid_unv,
+                message="Yes, it is an emergency (dead, dying, or imminent danger)",
+                department_id="engineering",
+            ))
+        self.assertIsNone(r_unv.form_packet)
+        self.assertIn("could not verify", r_unv.message.lower())
+        self.assertNotIn("remove the tree immediately", r_unv.message.lower())
+
+    def test_09_tree_cost_followup_citations_only_relevant_and_no_localhost(self):
+        from backend.app.main import chat_endpoint, serve_official_form
+        from backend.app.models.core import ChatRequest
+        from backend.scripts.ingest import EDISON_OFFICIAL_CATALOG
+
+        sid = "test_tree_cost_followup"
+        chat_endpoint(ChatRequest(session_id=sid, message="How do I remove a tree?", department_id="engineering"))
+        chat_endpoint(ChatRequest(
+            session_id=sid,
+            message="Yes, it is an emergency (dead, dying, or imminent danger)",
+            department_id="engineering",
+        ))
+        r_cost = chat_endpoint(ChatRequest(session_id=sid, message="cost", department_id="engineering"))
+        self.assertGreater(len(r_cost.citations or []), 0)
+        for c in (r_cost.citations or []):
+            low = (c.title + " " + c.url).lower()
+            self.assertNotIn("plot grading", low)
+            self.assertNotIn("site improvement", low)
+            self.assertIn("tree", low)
+            self.assertNotIn("localhost", c.url.lower())
+            self.assertNotIn("127.0.0.1", c.url)
+        self.assertIn("3.23.21", r_cost.message)
+        self.assertNotIn("localhost", r_cost.message.lower())
+
+        # Local PDF serving endpoint returns 200 OK
+        pdf_resp = serve_official_form("engineering", "3.23.21 tree permit application.pdf")
+        self.assertEqual(pdf_resp.status_code, 200)
+        self.assertEqual(pdf_resp.media_type, "application/pdf")
+
+        # Plot Grading official catalog URL points to verified revize URL (not 404 edisonnj.org path)
+        pg_doc = next(d for d in EDISON_OFFICIAL_CATALOG if "plot_grading" in d["id"])
+        self.assertIn("Requirments_for_plot_grading_plans.pdf", pg_doc["original_url"])
+
 
 if __name__ == "__main__":
     unittest.main()

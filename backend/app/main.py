@@ -598,6 +598,19 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
                 user_text=req.message
             )
             if success and step:
+                if step.id == "step_emergency_protocol_result" and not rag_engine._has_verified_emergency_tree_evidence(session.department_id):
+                    unverified_msg = rag_engine._build_unverified_emergency_tree_msg()
+                    history.append({"role": "user", "content": req.message})
+                    history.append({"role": "assistant", "content": unverified_msg})
+                    return ChatResponse(
+                        session_id=req.session_id,
+                        message=unverified_msg,
+                        mode="rag",
+                        citations=[],
+                        form_packet=None,
+                        department_id=session.department_id,
+                        completed=False,
+                    )
                 citations = []
                 if form_packet:
                     citations.append(

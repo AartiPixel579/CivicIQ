@@ -3,15 +3,17 @@ import re
 import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Query, Header, Depends, Response
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .config import (
     APP_NAME, APP_VERSION, MUNICIPALITY_NAME, ADMIN_API_KEY, APP_TAGLINE,
     GENERATED_DRAFTS_DIR, ENVIRONMENT, IS_PRODUCTION, ALLOWED_ORIGINS,
-    UNCONFIGURED_SERVICE_MESSAGE
+    UNCONFIGURED_SERVICE_MESSAGE,
+    CHAT_RATE_LIMIT_PER_MIN, ADMIN_INGEST_RATE_LIMIT_PER_MIN, CRAWL_LOCK_TTL_SECONDS
 )
+from .rate_limiter import rate_limiter
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
     DepartmentConfig, FlowDefinition, RagResult, RagCitation,
@@ -241,7 +243,7 @@ def reset_flow(session_id: str = Query(...)):
     return {"status": "success", "message": f"Procedure and conversation history reset for session {session_id}."}
 
 @app.post("/api/chat", response_model=ChatResponse)
-def chat_endpoint(req: ChatRequest):
+def chat_endpoint(req: ChatRequest, request: Request = None):
     """
     Main conversational router for CivicIQ:
     - Maintains multi-turn conversation memory for context across prompts.
@@ -251,6 +253,17 @@ def chat_endpoint(req: ChatRequest):
     - Delivers official PDF cards when explicitly requested in context.
     - Strictly returns out-of-context response for non-engineering queries.
     """
+    client_ip = request.client.host if (request and request.client) else "local"
+    allowed, _ = rate_limiter.check_rate_limit(
+        key=f"chat:{client_ip}:{req.session_id}",
+        max_requests=CHAT_RATE_LIMIT_PER_MIN,
+        window_seconds=60,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded for chat requests. Please wait a moment and try again."
+        )
     session = flow_engine.get_session(req.session_id)
     history = CHAT_HISTORIES.setdefault(req.session_id, [])
     msg_clean = req.message.strip().lower()
@@ -741,11 +754,13 @@ def chat_endpoint(req: ChatRequest):
 @app.post("/api/ingest")
 def trigger_ingestion(
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
-    clear: bool = False
+    clear: bool = False,
+    crawl_live: bool = False,
+    request: Request = None,
 ):
     """
-    Protected Admin endpoint to trigger official document discovery, PDF extraction,
-    and vector re-indexing for Edison Township.
+    Protected Admin endpoint to trigger non-destructive official document discovery,
+    PDF extraction, provenance-tracked indexing, and optional live web crawl.
     Requires header 'X-Admin-Key: <ADMIN_API_KEY>'.
     """
     if not ADMIN_API_KEY or not x_admin_key or x_admin_key != ADMIN_API_KEY:
@@ -754,13 +769,116 @@ def trigger_ingestion(
             detail="Admin access forbidden: invalid or missing X-Admin-Key header, or admin access is unconfigured."
         )
 
-    from backend.scripts.ingest import run_ingestion_and_inventory
-    result = run_ingestion_and_inventory()
-    registry.reload()
+    client_ip = request.client.host if (request and request.client) else "local"
+    allowed, _ = rate_limiter.check_rate_limit(
+        key=f"ingest:{client_ip}",
+        max_requests=ADMIN_INGEST_RATE_LIMIT_PER_MIN,
+        window_seconds=60,
+    )
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Admin ingest rate limit exceeded. Please wait before retrying.")
+
+    if not rate_limiter.acquire_crawl_lock("engineering_ingest", owner=client_ip, ttl_seconds=CRAWL_LOCK_TTL_SECONDS):
+        raise HTTPException(status_code=409, detail="An ingestion or crawl job is already in progress.")
+
+    try:
+        from backend.scripts.ingest import run_ingestion_and_inventory
+        result = run_ingestion_and_inventory(crawl_live=crawl_live)
+        registry.reload()
+        return {
+            "status": "success",
+            "message": "Official Edison Township document ingestion and indexing completed successfully.",
+            "details": result
+        }
+    finally:
+        rate_limiter.release_crawl_lock("engineering_ingest")
+
+
+@app.post("/api/admin/crawl")
+def trigger_admin_crawl(
+    department_id: str = "engineering",
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    request: Request = None,
+):
+    """
+    Protected Admin endpoint to trigger a manual incremental website crawl & safe staged update.
+    Requires header 'X-Admin-Key: <ADMIN_API_KEY>'.
+    """
+    if not ADMIN_API_KEY or not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access forbidden: invalid or missing X-Admin-Key header."
+        )
+
+    client_ip = request.client.host if (request and request.client) else "local"
+    allowed, _ = rate_limiter.check_rate_limit(
+        key=f"crawl:{client_ip}",
+        max_requests=ADMIN_INGEST_RATE_LIMIT_PER_MIN,
+        window_seconds=60,
+    )
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Admin crawl rate limit exceeded. Please wait before retrying.")
+
+    lock_key = f"crawl_{department_id}"
+    if not rate_limiter.acquire_crawl_lock(lock_key, owner=client_ip, ttl_seconds=CRAWL_LOCK_TTL_SECONDS):
+        raise HTTPException(status_code=409, detail=f"A crawl for '{department_id}' is already in progress.")
+
+    try:
+        from backend.scripts.incremental_ingest import run_incremental_ingestion
+        report = run_incremental_ingestion(department_id=department_id)
+        registry.reload()
+        return {
+            "status": report.get("status", "completed"),
+            "message": "Incremental website crawl completed.",
+            "report": report,
+        }
+    finally:
+        rate_limiter.release_crawl_lock(lock_key)
+
+
+@app.get("/api/admin/crawl-status")
+def get_admin_crawl_status(
+    department_id: str = "engineering",
+    limit: int = 10,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """
+    Protected Admin endpoint returning recent crawl run reports, trusted source counts,
+    and active vector store statistics.
+    """
+    if not ADMIN_API_KEY or not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access forbidden: invalid or missing X-Admin-Key header."
+        )
+
+    from backend.app.crawler import trusted_source_registry
+    crawl_status = trusted_source_registry.get_latest_crawl_status(department_id=department_id, limit=limit)
     return {
-        "status": "success",
-        "message": "Official Edison Township document ingestion and indexing completed successfully.",
-        "details": result
+        "crawl_status": crawl_status,
+        "vector_stats": vector_store.get_stats(),
+    }
+
+
+@app.get("/api/admin/trusted-sources")
+def list_admin_trusted_sources(
+    department_id: str = "engineering",
+    active_only: bool = False,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+):
+    """Protected Admin endpoint listing registered trusted sources and their provenance state."""
+    if not ADMIN_API_KEY or not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access forbidden: invalid or missing X-Admin-Key header."
+        )
+
+    from backend.app.crawler import trusted_source_registry
+    sources = trusted_source_registry.get_known_sources(department_id=department_id, active_only=active_only)
+    return {
+        "department_id": department_id,
+        "total": len(sources),
+        "sources": sources,
     }
 
 @app.get("/api/vector/stats")

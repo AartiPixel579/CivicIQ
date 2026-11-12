@@ -336,29 +336,30 @@ SERVICE_SPECIFIC_DETAILS: Dict[str, Dict[str, str]] = {
         )
     },
     "road_opening": {
+        # VERIFY: RoadOpenApp.pdf is a scanned PDF; fee/bond figures below should be cross-checked against OCR/official DPW schedule.
         "procedure": (
-            "An interactive workflow is not currently configured for Street Opening & Road Excavation in CivicIQ. "
-            "This service hasn't been configured yet for interactive processing. "
-            "However, you can download the official blank [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf) "
-            "to complete and submit directly to the Department of Public Works."
+            "Street Opening and Road Excavation applications in Edison Township are handled under the **Department of Public Works** (not Engineering).\n\n"
+            "CivicIQ provides the official blank municipal application and procedural requirements, but interactive form processing is not currently offered for this service.\n\n"
+            "• **Official Application Form:** Download the blank [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf).\n"
+            "• **Key Requirements:** Work in the public right-of-way requires an NJ One Call (811) markout ticket, a $5,000 restoration guarantee bond, and a traffic safety plan if traffic is impacted.\n"
+            "• **Filing:** The completed form and required bond/fee ($150 filing fee + $5,000 restoration bond) must be submitted directly to the **Department of Public Works** (100 Municipal Blvd, Edison, NJ 08817)."
         ),
         "fee": (
-            "For a Street Opening Permit in Edison Township, the fees are:\n"
-            "- **Application Filing Fee:** $150.00 (non-refundable).\n"
-            "- **Restoration Guarantee Bond:** Refundable $5,000.00 certified check or surety bond held during the 12-month post-restoration settlement period."
+            "The Street Opening Permit requires a **$150.00 filing fee** and a **$5,000.00 refundable restoration guarantee bond**.\n\n"
+            "Source: [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf)"
         ),
         "documents": (
-            "For an Edison Township Street Opening Permit, you must submit:\n"
-            "1. **Completed Application:** Official Street Opening Application Form.\n"
-            "2. **811 Dig Ticket:** Active confirmation ticket number from New Jersey One Call (811).\n"
-            "3. **Trench Sketch:** Plan showing pavement saw-cut dimensions (length, width, depth).\n"
-            "4. **Certificate of Insurance:** Minimum $1,000,000 general liability naming Township of Edison as additional insured.\n"
-            "5. **Restoration Bond:** $5,000.00 guarantee deposit."
+            "To apply for a Street Opening Permit from the Department of Public Works, submit:\n\n"
+            "• **Completed Application Form:** Township of Edison Street Opening Application.\n"
+            "• **NJ One Call (811) Ticket:** Confirmation number for utility markout.\n"
+            "• **Trench Sketch:** Dimensions and location of proposed pavement cut.\n"
+            "• **Insurance Certificate:** Liability insurance naming Township of Edison.\n"
+            "• **Fees & Bond:** $150 filing fee and $5,000 restoration guarantee bond.\n\n"
+            "Source: [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf)"
         ),
         "submission": (
-            "Submit Street Opening Applications to the **Department of Public Works / Engineering Desk**:\n"
-            "- **Address:** Edison Municipal Complex, 100 Municipal Boulevard, Edison, NJ 08817 (Monday – Friday, 8:00 AM – 4:30 PM).\n"
-            "- **Online:** [Edison Township Document Center](https://www.edisonnj.org/document_center/index.php)."
+            "Submit your completed Street Opening Application and restoration bond directly to the **Department of Public Works**, 100 Municipal Blvd, Edison, NJ 08817.\n\n"
+            "Source: [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf)"
         ),
         "turnaround": (
             "Standard processing turnaround is **5 to 7 business days** from receipt of complete application, insurance certificate, and bond."
@@ -397,32 +398,6 @@ SERVICE_SPECIFIC_DETAILS: Dict[str, Dict[str, str]] = {
         "submission": (
             "Submit your completed Flood Zone Determination Letter Request form and the $25.00 Flood Letter Fee to the **Division of Engineering** (Edison Municipal Complex, 100 Municipal Blvd, Edison, NJ 08817).\n\n"
             "Source: [Township of Edison Flood Zone Determination Letter Request (PDF)](/api/forms/engineering/Flood_Zone_Determination_Letter_REQUEST.pdf)"
-        )
-    },
-    "road_opening": {
-        "procedure": (
-            "Street Opening and Road Excavation applications in Edison Township are handled under the **Department of Public Works** (not Engineering).\n\n"
-            "CivicIQ provides the official blank municipal application and procedural requirements, but interactive form processing is not currently offered for this service.\n\n"
-            "• **Official Application Form:** Download the blank [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf).\n"
-            "• **Key Requirements:** Work in the public right-of-way requires an NJ One Call (811) markout ticket, a $5,000 restoration guarantee bond, and a traffic safety plan if traffic is impacted.\n"
-            "• **Filing:** The completed form and required bond/fee ($150 filing fee + $5,000 restoration bond) must be submitted directly to the **Department of Public Works** (100 Municipal Blvd, Edison, NJ 08817)."
-        ),
-        "fee": (
-            "The Street Opening Permit requires a **$150.00 filing fee** and a **$5,000.00 refundable restoration guarantee bond**.\n\n"
-            "Source: [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf)"
-        ),
-        "documents": (
-            "To apply for a Street Opening Permit from the Department of Public Works, submit:\n\n"
-            "• **Completed Application Form:** Township of Edison Street Opening Application.\n"
-            "• **NJ One Call (811) Ticket:** Confirmation number for utility markout.\n"
-            "• **Trench Sketch:** Dimensions and location of proposed pavement cut.\n"
-            "• **Insurance Certificate:** Liability insurance naming Township of Edison.\n"
-            "• **Fees & Bond:** $150 filing fee and $5,000 restoration guarantee bond.\n\n"
-            "Source: [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf)"
-        ),
-        "submission": (
-            "Submit your completed Street Opening Application and restoration bond directly to the **Department of Public Works**, 100 Municipal Blvd, Edison, NJ 08817.\n\n"
-            "Source: [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf)"
         )
     },
     "permit_flowchart": {
@@ -1682,7 +1657,8 @@ class ServiceIntentService:
             )
 
         # J. Tree Removal (Explicit or contextual follow-up)
-        is_tree_explicit = bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps|subdivision|demolition)\b', q))
+        is_non_tree_board_or_subdiv = any(p in q for p in ["major subdivision", "minor subdivision", "variance", "subdivision approval", "board approval"]) and not bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps)\b', q))
+        is_tree_explicit = (not is_non_tree_board_or_subdiv) and bool(re.search(r'\b(tree|trees|arborist|forester|sapling|stump|stumps|subdivision|demolition)\b', q))
         is_tree_context = ("tree" in user_context_text or "arborist" in user_context_text) and (
             detail_type != "procedure" or 
             any(w in q for w in ["emergency", "dead", "dying", "urgent", "hazard", "fall", "danger"]) or

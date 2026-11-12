@@ -37,6 +37,7 @@ class DepartmentConfig(BaseModel):
     standard_processing_time: str
     status: Optional[str] = "active"
     active: Optional[bool] = True
+    trusted_sources: Optional[Dict[str, Any]] = None
 
 # --- Knowledge Link Models ---
 class KnowledgeLink(BaseModel):
@@ -120,6 +121,18 @@ class RagCitation(BaseModel):
     department_id: str
     relevance_score: float
     excerpt: str
+    client_id: Optional[str] = None
+    document_id: Optional[str] = None
+    referring_url: Optional[str] = None
+    content_type: Optional[str] = None
+    source_type: Optional[str] = None
+    pdf_page_number: Optional[int] = None
+    retrieval_date: Optional[str] = None
+    last_modified: Optional[str] = None
+    etag: Optional[str] = None
+    content_hash: Optional[str] = None
+    is_active: bool = True
+    version_id: int = 1
     visibility: str = "public"
     document_type: Optional[str] = "guideline"
     service: Optional[str] = None

@@ -41,5 +41,26 @@
       "details": "https://www.edisonnj.org/document_center/index.php"
     }
   ],
-  "standard_processing_time": "5 to 10 business days for engineering permit review"
+  "standard_processing_time": "5 to 10 business days for engineering permit review",
+  "trusted_sources": {
+    "client_id": "edison_nj",
+    "root_url": "https://www.edisonnj.org/document_center/index.php",
+    "allowed_domains": ["www.edisonnj.org", "edisonnj.org"],
+    "follow_external_pdfs": true,
+    "crawl_depth": 2,
+    "max_pages": 80,
+    "include_patterns": [
+      "engineering", "soil", "tree", "permit", "flow chart", "flow_chart", "flow%20chart",
+      "road", "street", "sewer", "flood", "grading", "plot", "zoning", "subdivision",
+      "pool", "deck", "site improvement", "sip_", "paving", "pavement", "setback",
+      "schedule_a", "schedule%20a", "culvert", "stormwater"
+    ],
+    "exclude_patterns": [
+      "health", "clerk", "tax", "court", "animal", "election", "voter", "marriage",
+      "police", "calendar", "news", "bingo", "raffle", "landlord", "solicitor",
+      "peddler", "charitable", "precious", "electronic", "boards", "committees",
+      "affordablehomeownership", "coah", "language access", "annual action plan", "hefsp",
+      "opra", "americans with disabilities", "human resources", "council meeting schedule", "r.629-"
+    ]
+  }
 }

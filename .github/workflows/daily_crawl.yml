@@ -1,0 +1,38 @@
+name: Daily Incremental Knowledge Crawl
+
+on:
+  schedule:
+    # Runs once daily at 06:00 UTC (outside the FastAPI chat request lifecycle)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  incremental-crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Trigger remote admin crawl (if backend secrets configured)
+        if: ${{ secrets.CIVICIQ_BACKEND_URL != '' && secrets.ADMIN_API_KEY != '' }}
+        env:
+          BACKEND_URL: ${{ secrets.CIVICIQ_BACKEND_URL }}
+          ADMIN_KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          curl --fail --show-error --silent -X POST \
+            -H "X-Admin-Key: ${ADMIN_KEY}" \
+            "${BACKEND_URL}/api/admin/crawl?department_id=engineering"
+
+      - name: Run standalone crawler CLI (when DATABASE_URL is configured in Actions)
+        if: ${{ secrets.CIVICIQ_BACKEND_URL == '' && secrets.DATABASE_URL != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - if: ${{ secrets.CIVICIQ_BACKEND_URL == '' && secrets.DATABASE_URL != '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: production
+          VECTOR_STORE_PROVIDER: pgvector
+        run: |
+          pip install -r backend/requirements.txt
+          python -m backend.scripts.run_crawler --department engineering

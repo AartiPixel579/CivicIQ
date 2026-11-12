@@ -61,6 +61,26 @@ CHUNK_OVERLAP_WORDS = 30
 GENERATED_DRAFTS_DIR = DATA_DIR / "generated_drafts"
 GENERATED_DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Crawler & Incremental Update Configuration (Admin-configured, never resident-supplied)
+TRUSTED_ROOT_URL = os.getenv("TRUSTED_ROOT_URL", OFFICIAL_DOCUMENT_CENTER_URL).strip()
+CRAWL_MAX_DEPTH = int(os.getenv("CRAWL_MAX_DEPTH", "2"))
+CRAWL_MAX_PAGES = int(os.getenv("CRAWL_MAX_PAGES", "80"))
+CRAWL_DELAY_SECONDS = float(os.getenv("CRAWL_DELAY_SECONDS", "0.5"))
+CRAWL_TIMEOUT_SECONDS = int(os.getenv("CRAWL_TIMEOUT_SECONDS", "15"))
+CRAWL_MAX_RETRIES = int(os.getenv("CRAWL_MAX_RETRIES", "2"))
+CRAWL_MAX_PDF_MB = int(os.getenv("CRAWL_MAX_PDF_MB", "20"))
+CRAWL_MAX_HTML_MB = int(os.getenv("CRAWL_MAX_HTML_MB", "5"))
+CRAWL_MISS_THRESHOLD = int(os.getenv("CRAWL_MISS_THRESHOLD", "2"))
+CRAWL_FREQUENCY_HOURS = int(os.getenv("CRAWL_FREQUENCY_HOURS", "24"))
+INCREMENTAL_UPDATE_ENABLED = os.getenv("INCREMENTAL_UPDATE_ENABLED", "false").lower().strip() == "true"
+CRAWLED_PDFS_DIR = DATA_DIR / "crawled_pdfs"
+CRAWLED_PDFS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Rate Limiting & Concurrency Settings
+CHAT_RATE_LIMIT_PER_MIN = int(os.getenv("CHAT_RATE_LIMIT_PER_MIN", "60"))
+ADMIN_INGEST_RATE_LIMIT_PER_MIN = int(os.getenv("ADMIN_INGEST_RATE_LIMIT_PER_MIN", "10"))
+CRAWL_LOCK_TTL_SECONDS = int(os.getenv("CRAWL_LOCK_TTL_SECONDS", "300"))
+
 # LLM Configuration (Provider Priority: Gemini (Primary) -> Groq (Fallback) -> Transparent Fallback)
 LLM_PRIMARY_PROVIDER = os.getenv("LLM_PRIMARY_PROVIDER", "gemini").lower().strip()
 LLM_FALLBACK_PROVIDERS = [

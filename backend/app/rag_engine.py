@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from .vector_store import vector_store
 from .department_loader import registry
 from .llm_client import llm_client
+from .crawler import trusted_source_registry
 from .models import RagCitation, RagResult, FormIssuanceDetails, SubmissionRouting, FeeInfo, FlowOption
 from .config import (
     MUNICIPALITY_NAME, MUNICIPAL_ADDRESS,
@@ -923,6 +924,92 @@ class GroundedRagEngine:
             ]
         return None
 
+    def _check_resident_urls(self, query: str, department_id: str = "engineering") -> Optional[RagResult]:
+        """
+        Verifies any URLs shared by a resident in chat against the admin-approved TrustedSourceRegistry.
+        Never adds resident-provided URLs to the registry or permanent knowledge base.
+        """
+        urls = re.findall(r'https?://[^\s<>"\'\)\]]+', query or "", flags=re.IGNORECASE)
+        if not urls:
+            return None
+
+        unverified: List[str] = []
+        for raw_url in urls:
+            cleaned = raw_url.rstrip(".,;:!?")
+            is_trusted, _, _ = trusted_source_registry.is_url_trusted(cleaned, department_id=department_id)
+            if not is_trusted:
+                unverified.append(cleaned)
+
+        if unverified:
+            return RagResult(
+                answer=(
+                    "I cannot verify the external URL or document you shared against Edison Township's approved official sources, "
+                    "so I cannot add it to the knowledge base or use it as authoritative municipal information.\n\n"
+                    "For verified municipal documents and permits, please refer to the official "
+                    "[Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) or ask your question directly."
+                ),
+                citations=[],
+                grounded=False,
+                query=query,
+            )
+        return None
+
+    def _is_historical_query(self, query: str) -> Optional[str]:
+        """
+        Detects if the query asks about a historical/past year or prior fee schedule
+        so hardcoded current facts are never returned as historical facts.
+        Returns the matched historical token/year or None.
+        """
+        q = (query or "").lower()
+        year_match = re.search(r'\b(19\d{2}|20[0-1]\d|202[0-3])\b', q)
+        if year_match:
+            return year_match.group(1)
+        for phrase in ("old fee", "previous fee", "former fee", "historical", "prior year", "last year"):
+            if phrase in q:
+                return phrase
+        return None
+
+    def _retrieve_filtered_citations(
+        self,
+        query: str,
+        department_id: str = "engineering",
+        service_id: Optional[str] = None,
+        top_k: int = 4,
+    ) -> List[RagCitation]:
+        """Retrieves active public citations from the vector store, filtering internal flowcharts and cross-service noise."""
+        raw_citations: List[RagCitation] = vector_store.search(
+            query=query,
+            department_id=department_id,
+            top_k=max(top_k, 6),
+            threshold=SIMILARITY_THRESHOLD,
+        )
+        seen_urls = set()
+        citations: List[RagCitation] = []
+        for c in raw_citations:
+            if getattr(c, "visibility", "public") == "internal":
+                continue
+            if (
+                "permit flow chart" in c.title.lower()
+                or "flowchart" in (getattr(c, "category", "") or "").lower()
+                or "permit_flow_charts" in c.url.lower()
+            ):
+                continue
+            c_doc_name = (c.title + " " + (getattr(c, "service", "") or "")).lower()
+            if service_id == "tree_removal":
+                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "soil"]):
+                    continue
+            elif service_id in ["soil_import", "soil_export", "soil_movement"]:
+                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "tree"]):
+                    continue
+            base_url = c.url.split("#")[0].split("?")[0]
+            if base_url in seen_urls:
+                continue
+            seen_urls.add(base_url)
+            citations.append(c)
+            if len(citations) >= top_k:
+                break
+        return citations
+
     def answer_query(
         self,
         query: str,
@@ -933,6 +1020,33 @@ class GroundedRagEngine:
         Executes grounded retrieval and synthesis for resident queries.
         Returns OUT_OF_CONTEXT_MESSAGE if the inquiry is out of engineering context.
         """
+        dept = department_id if department_id else "engineering"
+
+        # 0. Verify any resident-supplied URLs/PDFs (never trust or ingest arbitrary resident links)
+        url_guard_res = self._check_resident_urls(query, department_id=dept)
+        if url_guard_res is not None:
+            return url_guard_res
+
+        # 0.5 Historical queries must never receive hardcoded current fees/rules
+        hist_token = self._is_historical_query(query)
+        if hist_token:
+            hist_cits = self._retrieve_filtered_citations(query, department_id=dept, top_k=4)
+            matching_hist = [c for c in hist_cits if hist_token.lower() in (c.excerpt or "").lower() or hist_token.lower() in (c.title or "").lower()]
+            if not matching_hist:
+                return RagResult(
+                    answer=(
+                        f"I could not verify historical municipal information for '{hist_token}' from the currently active official "
+                        f"Edison Township Engineering documents.\n\n"
+                        f"Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                        f"or contact the Division of Engineering directly for archived records."
+                    ),
+                    citations=[],
+                    grounded=False,
+                    query=query,
+                )
+            ans = llm_client.generate_answer(query=query, citations=matching_hist, history=history, department_name="Department of Engineering")
+            return RagResult(answer=ans, citations=matching_hist, grounded=True, query=query)
+
         # 1. Check if explicitly out of engineering context
         unsupported = self.check_unsupported_department_inquiry(query)
         if unsupported:
@@ -1003,13 +1117,11 @@ class GroundedRagEngine:
             if not detail_msg:
                 detail_msg = service_intent_service.get_detail_response(intent_res.service_id, "procedure", history=history)
             packet = self.match_official_form_packet(query, history=history, force=True)
-            citations = []
-            if packet:
-                citation_url = (
-                    packet.submission_routing.digital_upload_url 
-                    if (packet.submission_routing and packet.submission_routing.digital_upload_url and packet.submission_routing.digital_upload_url.startswith("http"))
-                    else packet.pdf_download_url
-                )
+            citations = self._retrieve_filtered_citations(query, department_id=dept, service_id=intent_res.service_id, top_k=4)
+            if packet and not citations:
+                digital_url = packet.submission_routing.digital_upload_url if packet.submission_routing else ""
+                is_generic_index = not digital_url or digital_url.rstrip("/").endswith("document_center/index.php")
+                citation_url = packet.pdf_download_url if is_generic_index else digital_url
                 citations.append(
                     RagCitation(
                         url=citation_url,
@@ -1027,7 +1139,7 @@ class GroundedRagEngine:
             return RagResult(
                 answer=detail_msg,
                 citations=citations,
-                grounded=True,
+                grounded=bool(citations),
                 query=query,
                 form_packet=packet,
                 options=[]
@@ -1039,7 +1151,7 @@ class GroundedRagEngine:
             return RagResult(
                 answer=UNCONFIGURED_SERVICE_MESSAGE,
                 citations=[],
-                grounded=True,
+                grounded=False,
                 query=query
             )
 
@@ -1048,10 +1160,15 @@ class GroundedRagEngine:
         if intent_res.detail_type not in ["procedure", "emergency"]:
             detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type, history=history)
             if detail_msg:
-                citations = []
+                citations = self._retrieve_filtered_citations(query, department_id=dept, service_id=intent_res.service_id, top_k=4)
+                if not citations and intent_res.service_id and intent_res.service_id != "other_engineering":
+                    # Short follow-ups (e.g. "I am 26", "What documents?", "How much?") need the resolved service context for vector retrieval
+                    svc_query = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}"
+                    citations = self._retrieve_filtered_citations(svc_query, department_id=dept, service_id=intent_res.service_id, top_k=4)
                 packet = self.match_official_form_packet(query, history=history, force=False)
-                if packet:
-                    citations.append(
+                if packet and not any(c.url == packet.pdf_download_url for c in citations):
+                    citations.insert(
+                        0,
                         RagCitation(
                             url=packet.pdf_download_url,
                             title=packet.form_title,
@@ -1064,6 +1181,19 @@ class GroundedRagEngine:
                             service=packet.form_code,
                             verification_status="verified"
                         )
+                    )
+                if not citations:
+                    return RagResult(
+                        answer=(
+                            "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
+                            "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                            "or contact the Division of Engineering directly."
+                        ),
+                        citations=[],
+                        grounded=False,
+                        query=query,
+                        form_packet=packet,
+                        options=self._determine_step_options(detail_msg, packet)
                     )
                 return RagResult(
                     answer=detail_msg,
@@ -1208,48 +1338,90 @@ class GroundedRagEngine:
         if not citations:
             if intent_res.service_id == "tree_removal":
                 packet = self.match_official_form_packet("tree removal", force=True)
+                p_cits = [
+                    RagCitation(
+                        url=packet.pdf_download_url,
+                        title=packet.form_title,
+                        category="Application Form",
+                        department_id=dept,
+                        relevance_score=1.0,
+                        excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
+                        visibility="public",
+                        document_type="application_form",
+                        service=packet.form_code,
+                        verification_status="verified",
+                    )
+                ] if packet else []
                 return RagResult(
                     answer=(
                         "Under Township of Edison Tree Protection regulations (Chapter 25-8), an approved **Tree Removal Permit** is required before removing mature trees on your property.\n\n"
                         "• **Filing Fee:** $25 standard residential fee (waived for seniors aged 62+ with valid proof of age; $200 with Board approval / subdivision).\n"
                         "• **Required Attachments:** Property survey or Tax Map sketch showing trees marked for removal, written statement of removal reasons, and site marking with ribbon or paint."
                     ),
-                    citations=[],
-                    grounded=True,
+                    citations=p_cits,
+                    grounded=bool(p_cits),
                     query=query,
                     form_packet=packet,
                     options=[]
                 )
             if intent_res.service_id == "soil_import":
                 packet = self.match_official_form_packet("soil import", force=True)
+                p_cits = [
+                    RagCitation(
+                        url=packet.pdf_download_url,
+                        title=packet.form_title,
+                        category="Application Form",
+                        department_id=dept,
+                        relevance_score=1.0,
+                        excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
+                        visibility="public",
+                        document_type="application_form",
+                        service=packet.form_code,
+                        verification_status="verified",
+                    )
+                ] if packet else []
                 return RagResult(
                     answer=self._build_soil_import_required_msg(),
-                    citations=[],
-                    grounded=True,
+                    citations=p_cits,
+                    grounded=bool(p_cits),
                     query=query,
                     form_packet=packet,
                     options=[]
                 )
             if intent_res.service_id == "soil_export":
                 packet = self.match_official_form_packet("soil export", force=True)
+                p_cits = [
+                    RagCitation(
+                        url=packet.pdf_download_url,
+                        title=packet.form_title,
+                        category="Application Form",
+                        department_id=dept,
+                        relevance_score=1.0,
+                        excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
+                        visibility="public",
+                        document_type="application_form",
+                        service=packet.form_code,
+                        verification_status="verified",
+                    )
+                ] if packet else []
                 return RagResult(
                     answer=self._build_soil_export_required_msg(),
-                    citations=[],
-                    grounded=True,
+                    citations=p_cits,
+                    grounded=bool(p_cits),
                     query=query,
                     form_packet=packet,
                     options=[]
                 )
-            # If the inquiry is genuinely an engineering inquiry, provide helpful grounded guidance
+            # No official evidence retrieved for this Engineering inquiry -> never fabricate or mark grounded
             if intent_res.service_id in ["other_engineering"]:
-                guidance_msg = (
-                    "I can help you with Edison Township municipal services such as Tree Removal, Soil Movement (Import / Export), Flood Zone Determination, Plot Grading Plans, Sewer Connections, Site Improvements, and Street Opening.\n\n"
-                    "Please let me know which municipal service or project you would like assistance with, or explore official forms and documents at the [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php)."
-                )
                 return RagResult(
-                    answer=guidance_msg,
+                    answer=(
+                        "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
+                        "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                        "or contact the Division of Engineering directly for authoritative guidance."
+                    ),
                     citations=[],
-                    grounded=True,
+                    grounded=False,
                     query=query
                 )
 
@@ -1261,6 +1433,25 @@ class GroundedRagEngine:
             )
 
         # 7. Generate grounded answer via LLMClient (Gemini / Groq / Fallback) with history
+        # If query asks about a specific unsupported board/variance timeline not present in retrieved excerpts, refuse rather than mislead.
+        q_low = query.lower()
+        if any(p in q_low for p in ["major subdivision", "variance", "guaranteed approval"]):
+            combined_cits = " ".join((c.title + " " + c.excerpt).lower() for c in citations)
+            if ("major subdivision" in q_low and "major subdivision" not in combined_cits) or (
+                "variance" in q_low and "variance" not in combined_cits
+            ):
+                return RagResult(
+                    answer=(
+                        "I could not verify that specific information (such as major subdivision or variance approval timelines) "
+                        "from the available official Edison Township Engineering documents.\n\n"
+                        "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                        "or contact the Division of Engineering / Planning & Zoning Board directly."
+                    ),
+                    citations=[],
+                    grounded=False,
+                    query=query,
+                )
+
         answer = llm_client.generate_answer(
             query=query,
             citations=citations,
@@ -1268,10 +1459,12 @@ class GroundedRagEngine:
             department_name=dept_name
         )
 
+        is_out = "out of our context" in (answer or "").lower()
+        is_unverified = "could not be verified from the available official" in (answer or "").lower()
         return RagResult(
             answer=answer,
-            citations=citations,
-            grounded=True,
+            citations=[] if is_out else citations,
+            grounded=bool(citations) and not is_out and not is_unverified,
             query=query
         )
 

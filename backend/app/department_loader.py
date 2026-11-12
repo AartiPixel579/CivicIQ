@@ -48,10 +48,8 @@ class DepartmentRegistry:
             except Exception as e:
                 logger.error(f"Error loading config for {dept_id}: {e}")
 
-        # 2. Flows (check flows.json or workflows/flows.json)
+        # 2. Flows (authoritative top-level flows.json)
         flows_path = dept_path / "flows.json"
-        if not flows_path.exists():
-            flows_path = dept_path / "workflows" / "flows.json"
         if flows_path.exists():
             try:
                 with open(flows_path, "r", encoding="utf-8") as f:

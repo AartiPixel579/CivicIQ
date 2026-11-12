@@ -91,19 +91,57 @@ class PgVectorStore:
                     cur.execute(f"""
                         CREATE TABLE IF NOT EXISTS municipal_knowledge_chunks (
                             id VARCHAR(64) PRIMARY KEY,
+                            client_id VARCHAR(64) DEFAULT 'default',
                             department_id VARCHAR(64) NOT NULL,
+                            document_id VARCHAR(128),
                             url TEXT NOT NULL,
+                            referring_url TEXT,
                             title TEXT NOT NULL,
                             category VARCHAR(128),
+                            content_type VARCHAR(128),
+                            source_type VARCHAR(32) DEFAULT 'pdf',
+                            pdf_page_number INT,
                             chunk_index INT,
                             content TEXT NOT NULL,
                             word_count INT,
+                            retrieval_date TIMESTAMP,
+                            last_modified TEXT,
+                            etag TEXT,
+                            content_hash VARCHAR(64),
+                            is_active BOOLEAN DEFAULT TRUE,
+                            version_id INT DEFAULT 1,
+                            visibility VARCHAR(32) DEFAULT 'public',
+                            document_type VARCHAR(64) DEFAULT 'guideline',
+                            service VARCHAR(128),
+                            verification_status VARCHAR(32) DEFAULT 'verified',
                             embedding vector({self.dim}),
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
+                    # Non-destructive migration for existing deployments
+                    cur.execute("""
+                        ALTER TABLE municipal_knowledge_chunks
+                            ADD COLUMN IF NOT EXISTS client_id VARCHAR(64) DEFAULT 'default',
+                            ADD COLUMN IF NOT EXISTS document_id VARCHAR(128),
+                            ADD COLUMN IF NOT EXISTS referring_url TEXT,
+                            ADD COLUMN IF NOT EXISTS content_type VARCHAR(128),
+                            ADD COLUMN IF NOT EXISTS source_type VARCHAR(32) DEFAULT 'pdf',
+                            ADD COLUMN IF NOT EXISTS pdf_page_number INT,
+                            ADD COLUMN IF NOT EXISTS retrieval_date TIMESTAMP,
+                            ADD COLUMN IF NOT EXISTS last_modified TEXT,
+                            ADD COLUMN IF NOT EXISTS etag TEXT,
+                            ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64),
+                            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+                            ADD COLUMN IF NOT EXISTS version_id INT DEFAULT 1,
+                            ADD COLUMN IF NOT EXISTS visibility VARCHAR(32) DEFAULT 'public',
+                            ADD COLUMN IF NOT EXISTS document_type VARCHAR(64) DEFAULT 'guideline',
+                            ADD COLUMN IF NOT EXISTS service VARCHAR(128),
+                            ADD COLUMN IF NOT EXISTS verification_status VARCHAR(32) DEFAULT 'verified';
+                    """)
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_dept ON municipal_knowledge_chunks(department_id);")
                     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_url ON municipal_knowledge_chunks(url);")
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_active ON municipal_knowledge_chunks(department_id, is_active);")
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc_ver ON municipal_knowledge_chunks(document_id, version_id);")
                 conn.commit()
 
             # Transaction 2: Vector index creation (HNSW with graceful IVFFlat fallback)
@@ -162,7 +200,8 @@ class PgVectorStore:
 
     def add_chunks(self, chunks: List[Dict]):
         """
-        Embeds chunk contents and upserts them into PostgreSQL with pgvector.
+        Embeds chunk contents and upserts them into PostgreSQL with pgvector,
+        preserving full document provenance and versioning metadata.
         """
         if not chunks:
             return
@@ -174,28 +213,63 @@ class PgVectorStore:
         for ch, emb in zip(chunks, embeddings):
             records.append((
                 ch["id"],
+                ch.get("client_id", "default"),
                 ch["department_id"],
+                ch.get("document_id"),
                 ch["url"],
+                ch.get("referring_url"),
                 ch["title"],
                 ch.get("category", "General"),
+                ch.get("content_type"),
+                ch.get("source_type", "pdf"),
+                ch.get("pdf_page_number"),
                 ch.get("chunk_index", 0),
                 ch["content"],
                 len(ch["content"].split()),
+                ch.get("retrieval_date"),
+                ch.get("last_modified"),
+                ch.get("etag"),
+                ch.get("content_hash"),
+                bool(ch.get("is_active", True)),
+                int(ch.get("version_id", 1)),
+                ch.get("visibility", "public"),
+                ch.get("document_type", "guideline"),
+                ch.get("service"),
+                ch.get("verification_status", "verified"),
                 emb.tolist() # pgvector handles list or np.ndarray with register_vector
             ))
 
-        upsert_sql = f"""
-            INSERT INTO municipal_knowledge_chunks 
-            (id, department_id, url, title, category, chunk_index, content, word_count, embedding)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::vector)
+        upsert_sql = """
+            INSERT INTO municipal_knowledge_chunks
+            (id, client_id, department_id, document_id, url, referring_url, title, category,
+             content_type, source_type, pdf_page_number, chunk_index, content, word_count,
+             retrieval_date, last_modified, etag, content_hash, is_active, version_id,
+             visibility, document_type, service, verification_status, embedding)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector)
             ON CONFLICT (id) DO UPDATE SET
+                client_id = EXCLUDED.client_id,
                 department_id = EXCLUDED.department_id,
+                document_id = EXCLUDED.document_id,
                 url = EXCLUDED.url,
+                referring_url = EXCLUDED.referring_url,
                 title = EXCLUDED.title,
                 category = EXCLUDED.category,
+                content_type = EXCLUDED.content_type,
+                source_type = EXCLUDED.source_type,
+                pdf_page_number = EXCLUDED.pdf_page_number,
                 chunk_index = EXCLUDED.chunk_index,
                 content = EXCLUDED.content,
                 word_count = EXCLUDED.word_count,
+                retrieval_date = EXCLUDED.retrieval_date,
+                last_modified = EXCLUDED.last_modified,
+                etag = EXCLUDED.etag,
+                content_hash = EXCLUDED.content_hash,
+                is_active = EXCLUDED.is_active,
+                version_id = EXCLUDED.version_id,
+                visibility = EXCLUDED.visibility,
+                document_type = EXCLUDED.document_type,
+                service = EXCLUDED.service,
+                verification_status = EXCLUDED.verification_status,
                 embedding = EXCLUDED.embedding;
         """
 
@@ -205,6 +279,137 @@ class PgVectorStore:
             conn.commit()
 
         logger.info(f"Successfully upserted {len(chunks)} chunks into pgvector.")
+
+    def stage_and_activate_document_chunks(
+        self,
+        department_id: str,
+        document_id: str,
+        chunks: List[Dict],
+        new_version_id: int
+    ) -> bool:
+        """
+        Safely stages new chunks for a document (is_active=FALSE), validates insertion,
+        then atomically activates the new version and deactivates prior versions in one transaction.
+        """
+        if not chunks:
+            return False
+
+        texts = [ch["content"] for ch in chunks]
+        embeddings = embedder.embed_batch(texts)
+
+        records = []
+        for ch, emb in zip(chunks, embeddings):
+            records.append((
+                ch["id"],
+                ch.get("client_id", "default"),
+                department_id,
+                document_id,
+                ch["url"],
+                ch.get("referring_url"),
+                ch["title"],
+                ch.get("category", "General"),
+                ch.get("content_type"),
+                ch.get("source_type", "pdf"),
+                ch.get("pdf_page_number"),
+                ch.get("chunk_index", 0),
+                ch["content"],
+                len(ch["content"].split()),
+                ch.get("retrieval_date"),
+                ch.get("last_modified"),
+                ch.get("etag"),
+                ch.get("content_hash"),
+                False,  # staged inactive first
+                int(new_version_id),
+                ch.get("visibility", "public"),
+                ch.get("document_type", "guideline"),
+                ch.get("service"),
+                ch.get("verification_status", "verified"),
+                emb.tolist()
+            ))
+
+        upsert_sql = """
+            INSERT INTO municipal_knowledge_chunks
+            (id, client_id, department_id, document_id, url, referring_url, title, category,
+             content_type, source_type, pdf_page_number, chunk_index, content, word_count,
+             retrieval_date, last_modified, etag, content_hash, is_active, version_id,
+             visibility, document_type, service, verification_status, embedding)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector)
+            ON CONFLICT (id) DO UPDATE SET
+                content = EXCLUDED.content,
+                word_count = EXCLUDED.word_count,
+                retrieval_date = EXCLUDED.retrieval_date,
+                last_modified = EXCLUDED.last_modified,
+                etag = EXCLUDED.etag,
+                content_hash = EXCLUDED.content_hash,
+                is_active = EXCLUDED.is_active,
+                version_id = EXCLUDED.version_id,
+                embedding = EXCLUDED.embedding;
+        """
+
+        with self._get_connection() as conn:
+            try:
+                with conn.cursor() as cur:
+                    execute_batch(cur, upsert_sql, records, page_size=100)
+                    cur.execute(
+                        "SELECT count(*) FROM municipal_knowledge_chunks WHERE department_id = %s AND document_id = %s AND version_id = %s;",
+                        (department_id, document_id, int(new_version_id))
+                    )
+                    staged_count = cur.fetchone()[0]
+                    if staged_count < len(records):
+                        raise RuntimeError(f"Staging validation failed: expected {len(records)}, got {staged_count}")
+
+                    # Atomically deactivate older versions (and any legacy unversioned chunks for this URL) and activate new version
+                    doc_urls = list({ch["url"] for ch in chunks if ch.get("url")})
+                    cur.execute(
+                        "UPDATE municipal_knowledge_chunks SET is_active = FALSE WHERE department_id = %s AND document_id = %s AND version_id <> %s;",
+                        (department_id, document_id, int(new_version_id))
+                    )
+                    if doc_urls:
+                        cur.execute(
+                            "UPDATE municipal_knowledge_chunks SET is_active = FALSE WHERE department_id = %s AND document_id IS NULL AND url = ANY(%s);",
+                            (department_id, doc_urls)
+                        )
+                    cur.execute(
+                        "UPDATE municipal_knowledge_chunks SET is_active = TRUE WHERE department_id = %s AND document_id = %s AND version_id = %s;",
+                        (department_id, document_id, int(new_version_id))
+                    )
+                conn.commit()
+                return True
+            except Exception:
+                conn.rollback()
+                raise
+
+    def deactivate_document(self, department_id: str, document_id: str):
+        """Marks all chunks for a removed document inactive without deleting historical metadata."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE municipal_knowledge_chunks SET is_active = FALSE WHERE department_id = %s AND document_id = %s;",
+                    (department_id, document_id)
+                )
+            conn.commit()
+
+    def get_active_document_versions(self, department_id: str) -> Dict[str, Dict]:
+        """Returns active document metadata keyed by document_id."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT document_id, MAX(version_id), MAX(content_hash), MAX(etag), MAX(last_modified), MAX(url)
+                    FROM municipal_knowledge_chunks
+                    WHERE department_id = %s AND is_active = TRUE AND document_id IS NOT NULL
+                    GROUP BY document_id;
+                """, (department_id,))
+                rows = cur.fetchall()
+        return {
+            r[0]: {
+                "version_id": r[1] or 1,
+                "content_hash": r[2],
+                "etag": r[3],
+                "last_modified": r[4],
+                "url": r[5],
+            }
+            for r in rows if r[0]
+        }
 
     def search(
         self,
@@ -222,10 +427,14 @@ class PgVectorStore:
         # Cosine distance in pgvector is <=> (0 = identical, 2 = opposite)
         # Similarity = 1 - (embedding <=> query_vec)
         sql = """
-            SELECT id, department_id, url, title, category, content,
+            SELECT id, client_id, department_id, document_id, url, referring_url, title, category,
+                   content_type, source_type, pdf_page_number, retrieval_date, last_modified, etag,
+                   content_hash, is_active, version_id, visibility, document_type, service,
+                   verification_status, content,
                    (1.0 - (embedding <=> %s::vector)) AS similarity
             FROM municipal_knowledge_chunks
             WHERE (%s IS NULL OR department_id = %s)
+              AND (is_active IS NULL OR is_active = TRUE)
               AND (1.0 - (embedding <=> %s::vector)) >= %s
             ORDER BY (embedding <=> %s::vector) ASC
             LIMIT %s;
@@ -246,7 +455,12 @@ class PgVectorStore:
 
         results = []
         for r in rows:
-            chunk_id, dept_id, url, title, category, content, score = r
+            (
+                chunk_id, client_id, dept_id, document_id, url, referring_url, title, category,
+                content_type, source_type, pdf_page_number, retrieval_date, last_modified, etag,
+                content_hash, is_active, version_id, visibility, doc_type, srv, ver_status,
+                content, score
+            ) = r
             excerpt = content.strip().replace("\n", " ")
             if len(excerpt) > 280:
                 excerpt = excerpt[:277] + "..."
@@ -257,25 +471,47 @@ class PgVectorStore:
                 category=category or "General",
                 department_id=dept_id,
                 relevance_score=round(float(score), 3),
-                excerpt=excerpt
+                excerpt=excerpt,
+                client_id=client_id,
+                document_id=document_id,
+                referring_url=referring_url,
+                content_type=content_type,
+                source_type=source_type,
+                pdf_page_number=pdf_page_number,
+                retrieval_date=str(retrieval_date) if retrieval_date else None,
+                last_modified=last_modified,
+                etag=etag,
+                content_hash=content_hash,
+                is_active=bool(is_active if is_active is not None else True),
+                version_id=int(version_id or 1),
+                visibility=visibility or "public",
+                document_type=doc_type or "guideline",
+                service=srv,
+                verification_status=ver_status or "verified"
             ))
 
         return results
 
     def get_stats(self) -> Dict:
-        """Returns statistics from PostgreSQL."""
+        """Returns active chunk statistics from PostgreSQL."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT count(*), count(distinct department_id), count(distinct url) 
-                    FROM municipal_knowledge_chunks;
+                    SELECT count(*), count(distinct department_id), count(distinct url)
+                    FROM municipal_knowledge_chunks
+                    WHERE is_active IS NULL OR is_active = TRUE;
                 """)
                 row = cur.fetchone()
                 total = row[0] if row else 0
                 depts = row[1] if row else 0
                 urls = row[2] if row else 0
 
-                cur.execute("SELECT department_id, count(*) FROM municipal_knowledge_chunks GROUP BY department_id;")
+                cur.execute("""
+                    SELECT department_id, count(*)
+                    FROM municipal_knowledge_chunks
+                    WHERE is_active IS NULL OR is_active = TRUE
+                    GROUP BY department_id;
+                """)
                 by_dept = dict(cur.fetchall())
 
         return {

@@ -22,11 +22,24 @@ current_file = Path(__file__).resolve()
 backend_root = current_file.parent.parent
 sys.path.insert(0, str(backend_root))
 
-from app.config import (
-    DEPARTMENTS_DIR, CHUNK_SIZE_WORDS, CHUNK_OVERLAP_WORDS,
-    MUNICIPALITY_NAME, OFFICIAL_DOCUMENT_CENTER_URL
-)
-from app.vector_store import UnifiedVectorStore
+try:
+    from backend.app.config import (
+        DEPARTMENTS_DIR, CHUNK_SIZE_WORDS, CHUNK_OVERLAP_WORDS,
+        MUNICIPALITY_NAME, OFFICIAL_DOCUMENT_CENTER_URL, TRUSTED_ROOT_URL
+    )
+    from backend.app.vector_store import UnifiedVectorStore, vector_store as shared_vector_store
+    from backend.app.crawler import (
+        extract_pdf_pages, trusted_source_registry, canonicalize_url_for_dedup
+    )
+except ImportError:
+    from app.config import (
+        DEPARTMENTS_DIR, CHUNK_SIZE_WORDS, CHUNK_OVERLAP_WORDS,
+        MUNICIPALITY_NAME, OFFICIAL_DOCUMENT_CENTER_URL, TRUSTED_ROOT_URL
+    )
+    from app.vector_store import UnifiedVectorStore, vector_store as shared_vector_store
+    from app.crawler import (
+        extract_pdf_pages, trusted_source_registry, canonicalize_url_for_dedup
+    )
 import pypdf
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -371,23 +384,59 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE_WORDS, overlap: int = CHU
 
     return chunks
 
-def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict:
+def run_ingestion_and_inventory(
+    departments_dir: Path = DEPARTMENTS_DIR,
+    crawl_live: bool = False,
+) -> Dict:
     """
-    Runs official document discovery, PDF extraction, inventory generation,
-    and vector store population.
+    Runs safe, non-destructive official document discovery, PDF extraction,
+    provenance-preserving versioned indexing, and inventory generation.
+    Never wipes the existing active knowledge base prior to validation.
     """
-    logger.info("Starting Edison Township Official Document Ingestion Pipeline...")
-    now_iso = datetime.now(timezone.utc).isoformat()
-    
+    logger.info("Starting Edison Township Official Document Ingestion Pipeline (Non-Destructive)...")
+    now_iso = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    engineering_dir = Path(departments_dir) / "engineering"
+    engineering_forms_dir = engineering_dir / "forms"
+
+    # Load configured root URL from departments/engineering/config.json if available
+    cfg_path = engineering_dir / "config.json"
+    client_id = "edison_nj"
+    root_url = TRUSTED_ROOT_URL
+    if cfg_path.exists():
+        try:
+            cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            ts = cfg_data.get("trusted_sources", {}) or {}
+            client_id = ts.get("client_id", client_id)
+            root_url = ts.get("root_url", root_url)
+        except Exception as exc:
+            logger.warning(f"Failed to read trusted_sources from {cfg_path}: {exc}")
+
+    trusted_source_registry.seed_from_config(
+        department_id="engineering",
+        root_url=root_url,
+        client_id=client_id,
+        seed_urls=[
+            {
+                "url": item["original_url"],
+                "source_type": "pdf" if ".pdf" in item["original_url"].lower() else "html",
+                "referring_url": root_url,
+                "discovered_via": "admin_seed_catalog",
+            }
+            for item in EDISON_OFFICIAL_CATALOG
+        ],
+    )
+
+    store = shared_vector_store
+    active_versions = store.get_active_document_versions("engineering")
+
     inventory_items = []
-    chunks_to_index = []
-    engineering_forms_dir = departments_dir / "engineering" / "forms"
-    
-    total_docs = len(EDISON_OFFICIAL_CATALOG)
+    total_chunks_indexed = 0
     extracted_count = 0
     scanned_count = 0
     web_count = 0
-    
+    unchanged_count = 0
+
     for item in EDISON_OFFICIAL_CATALOG:
         doc_id = item["id"]
         title = item["title"]
@@ -399,27 +448,40 @@ def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict
         official_summary = item.get("official_summary", "")
         fee_info = item.get("fee_info", "")
         target_desk = item.get("target_desk", "")
-        
+
         local_path = None
         file_size_bytes = None
         page_count = 0
         extracted_text = ""
+        page_entries: List[Tuple[Optional[int], str]] = []
         extraction_status = "web_scraped"
         needs_manual_verification = False
-        
+        source_type = "pdf" if ".pdf" in url.lower() or local_filename else "html"
+        content_type = "application/pdf" if source_type == "pdf" else "text/html"
+
         if local_filename:
             file_path = engineering_forms_dir / local_filename
             if file_path.exists():
                 local_path = f"departments/engineering/forms/{local_filename}"
                 file_size_bytes = file_path.stat().st_size
-                text, pages, status = extract_text_from_pdf(file_path, page_number=item.get("page_number"))
-                page_count = pages
-                extraction_status = status
-                extracted_text = text
-                
-                if status == "extracted":
+                target_page = item.get("page_number")
+                pdf_res = extract_pdf_pages(file_path, enable_ocr=True)
+                page_count = pdf_res.total_pages
+                extraction_status = pdf_res.extraction_status
+
+                if target_page and 1 <= target_page <= page_count:
+                    matched_pages = [(p, t) for p, t in pdf_res.pages if p == target_page]
+                    page_entries = matched_pages
+                    extracted_text = "\n\n".join(f"[Page {p}]\n{t}" for p, t in matched_pages).strip()
+                    if len(extracted_text) > 30 and extraction_status == "scanned_pdf_needs_ocr":
+                        extraction_status = "extracted"
+                else:
+                    page_entries = list(pdf_res.pages)
+                    extracted_text = "\n\n".join(f"[Page {p}]\n{t}" for p, t in pdf_res.pages).strip()
+
+                if extraction_status in ("extracted", "ocr_extracted"):
                     extracted_count += 1
-                elif status == "scanned_pdf_needs_ocr":
+                elif extraction_status == "scanned_pdf_needs_ocr":
                     scanned_count += 1
                     needs_manual_verification = True
                     logger.warning(f"Document '{local_filename}' is a scanned PDF image; flagged for manual verification / OCR.")
@@ -429,9 +491,9 @@ def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict
         else:
             web_count += 1
             extraction_status = "web_scraped"
-        
+
         # Build comprehensive textual corpus for RAG indexing
-        corpus_parts = [
+        meta_header = "\n\n".join([
             f"DOCUMENT: {title}",
             f"MUNICIPALITY: {MUNICIPALITY_NAME}",
             f"DEPARTMENT: {dept.capitalize()} & Zoning",
@@ -441,35 +503,133 @@ def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict
             f"SUBMISSION INTAKE: {target_desk}",
             f"FEE STRUCTURE: {fee_info}",
             f"OFFICIAL SUMMARY: {official_summary}"
-        ]
-        if extracted_text:
-            corpus_parts.append(f"EXTRACTED OFFICIAL TEXT CONTENT:\n{extracted_text}")
-            
-        full_document_corpus = "\n\n".join(corpus_parts)
-        
-        # Generate semantic chunks
-        doc_chunks = chunk_text(full_document_corpus)
-        url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()[:8]
-        
-        for idx, chunk in enumerate(doc_chunks):
-            chunk_id = f"{dept}_{url_hash}_{idx}"
-            chunks_to_index.append({
-                "id": chunk_id,
-                "department_id": dept,
-                "url": url,
-                "title": title,
-                "category": doc_type,
-                "chunk_index": idx,
-                "content": chunk,
-                "word_count": len(chunk.split()),
-                "visibility": item.get("visibility", "public"),
-                "document_type": doc_type,
-                "service": item.get("service", service_name),
-                "verification_status": item.get("verification_status", "verified")
-            })
-            
+        ])
+
+        doc_hash_input = f"{meta_header}\n{extracted_text}".encode("utf-8")
+        content_hash = hashlib.sha256(doc_hash_input).hexdigest()
+
+        prev_info = active_versions.get(doc_id)
+        if prev_info and prev_info.get("content_hash") == content_hash:
+            unchanged_count += 1
+            doc_version = prev_info.get("version_id", 1)
+        else:
+            doc_version = (prev_info.get("version_id", 0) + 1) if prev_info else 1
+            url_hash = hashlib.md5(canonicalize_url_for_dedup(url).encode("utf-8")).hexdigest()[:8]
+            doc_chunks: List[Dict] = []
+
+            if page_entries:
+                # Index summary header on page 1 + page-attributed PDF chunks
+                intro_chunks = chunk_text(meta_header)
+                chunk_idx = 0
+                for c_txt in intro_chunks:
+                    doc_chunks.append({
+                        "id": f"{dept}_{url_hash}_v{doc_version}_{chunk_idx}",
+                        "client_id": client_id,
+                        "department_id": dept,
+                        "document_id": doc_id,
+                        "url": url,
+                        "referring_url": root_url,
+                        "title": title,
+                        "category": doc_type,
+                        "content_type": content_type,
+                        "source_type": source_type,
+                        "pdf_page_number": item.get("page_number") or 1,
+                        "chunk_index": chunk_idx,
+                        "content": c_txt,
+                        "word_count": len(c_txt.split()),
+                        "retrieval_date": now_iso,
+                        "last_modified": None,
+                        "etag": None,
+                        "content_hash": content_hash,
+                        "is_active": True,
+                        "version_id": doc_version,
+                        "visibility": item.get("visibility", "public"),
+                        "document_type": doc_type,
+                        "service": item.get("service", service_name),
+                        "verification_status": item.get("verification_status", "verified"),
+                    })
+                    chunk_idx += 1
+
+                for page_num, p_text in page_entries:
+                    for c_txt in chunk_text(f"[Page {page_num}] {p_text}"):
+                        doc_chunks.append({
+                            "id": f"{dept}_{url_hash}_v{doc_version}_{chunk_idx}",
+                            "client_id": client_id,
+                            "department_id": dept,
+                            "document_id": doc_id,
+                            "url": url,
+                            "referring_url": root_url,
+                            "title": title,
+                            "category": doc_type,
+                            "content_type": content_type,
+                            "source_type": source_type,
+                            "pdf_page_number": page_num,
+                            "chunk_index": chunk_idx,
+                            "content": c_txt,
+                            "word_count": len(c_txt.split()),
+                            "retrieval_date": now_iso,
+                            "last_modified": None,
+                            "etag": None,
+                            "content_hash": content_hash,
+                            "is_active": True,
+                            "version_id": doc_version,
+                            "visibility": item.get("visibility", "public"),
+                            "document_type": doc_type,
+                            "service": item.get("service", service_name),
+                            "verification_status": item.get("verification_status", "verified"),
+                        })
+                        chunk_idx += 1
+            else:
+                for idx, c_txt in enumerate(chunk_text(meta_header)):
+                    doc_chunks.append({
+                        "id": f"{dept}_{url_hash}_v{doc_version}_{idx}",
+                        "client_id": client_id,
+                        "department_id": dept,
+                        "document_id": doc_id,
+                        "url": url,
+                        "referring_url": root_url,
+                        "title": title,
+                        "category": doc_type,
+                        "content_type": content_type,
+                        "source_type": source_type,
+                        "pdf_page_number": item.get("page_number"),
+                        "chunk_index": idx,
+                        "content": c_txt,
+                        "word_count": len(c_txt.split()),
+                        "retrieval_date": now_iso,
+                        "last_modified": None,
+                        "etag": None,
+                        "content_hash": content_hash,
+                        "is_active": True,
+                        "version_id": doc_version,
+                        "visibility": item.get("visibility", "public"),
+                        "document_type": doc_type,
+                        "service": item.get("service", service_name),
+                        "verification_status": item.get("verification_status", "verified"),
+                    })
+
+            if doc_chunks:
+                store.stage_and_activate_document_chunks(
+                    department_id=dept,
+                    document_id=doc_id,
+                    chunks=doc_chunks,
+                    new_version_id=doc_version,
+                )
+                total_chunks_indexed += len(doc_chunks)
+                trusted_source_registry.record_discovered_source(
+                    department_id=dept,
+                    url=url,
+                    source_type=source_type,
+                    referring_url=root_url,
+                    discovered_via="admin_seed_catalog",
+                    client_id=client_id,
+                    content_hash=content_hash,
+                    active_version_id=doc_version,
+                )
+
         inventory_record = {
             "id": doc_id,
+            "client_id": client_id,
             "title": title,
             "department": dept,
             "document_type": doc_type,
@@ -478,6 +638,12 @@ def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict
             "visibility": item.get("visibility", "public"),
             "verification_status": item.get("verification_status", "verified"),
             "original_url": url,
+            "referring_url": root_url,
+            "source_type": source_type,
+            "content_type": content_type,
+            "content_hash": content_hash,
+            "version_id": doc_version,
+            "is_active": True,
             "local_path": local_path,
             "local_filename": local_filename,
             "workflow_id": item.get("workflow_id"),
@@ -492,40 +658,51 @@ def run_ingestion_and_inventory(departments_dir: Path = DEPARTMENTS_DIR) -> Dict
             "official_summary": official_summary
         }
         inventory_items.append(inventory_record)
-        
-    # Write departments/engineering/document_inventory.json
-    inventory_file = departments_dir / "engineering" / "document_inventory.json"
+
+    # Write departments/engineering/document_inventory.json atomically
+    inventory_file = engineering_dir / "document_inventory.json"
     inventory_data = {
         "municipality": MUNICIPALITY_NAME,
-        "official_source": OFFICIAL_DOCUMENT_CENTER_URL,
+        "official_source": root_url,
         "generated_at": now_iso,
         "total_documents": len(inventory_items),
         "extracted_text_count": extracted_count,
         "scanned_pdf_needs_ocr_count": scanned_count,
         "web_indexed_count": web_count,
+        "unchanged_documents": unchanged_count,
         "documents": inventory_items
     }
-    
-    with open(inventory_file, "w", encoding="utf-8") as f:
+    tmp_inv = inventory_file.with_suffix(".json.tmp")
+    with open(tmp_inv, "w", encoding="utf-8") as f:
         json.dump(inventory_data, f, indent=2)
+    tmp_inv.replace(inventory_file)
     logger.info(f"Saved document inventory ({len(inventory_items)} records) to {inventory_file}")
-    
-    # Index chunks into UnifiedVectorStore
-    store = UnifiedVectorStore()
-    store.clear(department_id="engineering")
-    store.add_chunks(chunks_to_index)
-    logger.info(f"Indexed {len(chunks_to_index)} chunks into {store.get_active_backend_name()}.")
-    
+
+    crawl_report = None
+    if crawl_live:
+        try:
+            from backend.scripts.incremental_ingest import run_incremental_ingestion
+        except ImportError:
+            from scripts.incremental_ingest import run_incremental_ingestion
+        crawl_report = run_incremental_ingestion(department_id="engineering", departments_dir=departments_dir, store=store)
+
     stats = store.get_stats()
-    
+    logger.info(
+        f"Non-destructive ingestion finished: {total_chunks_indexed} new/updated chunks, "
+        f"{unchanged_count} unchanged docs, total active chunks={stats.get('total_chunks', 0)}."
+    )
+
     return {
         "status": "success",
         "inventory_file": str(inventory_file),
         "total_documents": len(inventory_items),
         "extracted_count": extracted_count,
         "scanned_count": scanned_count,
-        "chunks_indexed": len(chunks_to_index),
-        "vector_backend": stats.get("backend")
+        "unchanged_count": unchanged_count,
+        "chunks_indexed": total_chunks_indexed,
+        "total_active_chunks": stats.get("total_chunks", 0),
+        "vector_backend": stats.get("backend"),
+        "crawl_report": crawl_report,
     }
 
 if __name__ == "__main__":

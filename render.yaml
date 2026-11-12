@@ -29,3 +29,15 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: TRUSTED_ROOT_URL
+        value: https://www.edisonnj.org/document_center/index.php
+      - key: CRAWL_MAX_DEPTH
+        value: "2"
+      - key: CRAWL_DELAY_SECONDS
+        value: "0.5"
+      - key: CRAWL_TIMEOUT_SECONDS
+        value: "15"
+      - key: CRAWL_MAX_PDF_MB
+        value: "20"
+      - key: CRAWL_MISS_THRESHOLD
+        value: "2"

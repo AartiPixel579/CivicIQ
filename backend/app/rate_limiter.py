@@ -18,6 +18,10 @@ from .config import DATABASE_URL, IS_PRODUCTION, VECTOR_DB_PATH
 logger = logging.getLogger("rate_limiter")
 
 
+class RateLimiterUnavailableError(RuntimeError):
+    """Raised when persistent rate-limiter storage is unavailable in production."""
+
+
 class PersistentRateLimiter:
     def __init__(self, db_path: Path = VECTOR_DB_PATH, db_url: str = DATABASE_URL, force_sqlite: bool = False):
         self.db_path = Path(db_path)
@@ -67,8 +71,9 @@ class PersistentRateLimiter:
         db_url = self._normalize_pg_url(os.getenv("DATABASE_URL", "") or self.db_url or "")
         if not db_url:
             if is_prod:
-                raise RuntimeError("DATABASE_URL is required in production for rate limiting and crawl locks.")
+                raise RateLimiterUnavailableError("DATABASE_URL is required in production for rate limiting and crawl locks.")
             return None
+        conn = None
         try:
             import psycopg2
             conn = psycopg2.connect(db_url, connect_timeout=10)
@@ -92,8 +97,13 @@ class PersistentRateLimiter:
                 self._pg_schema_ready = True
             return conn
         except Exception as exc:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
             if is_prod:
-                raise RuntimeError(f"PostgreSQL rate_limiter unavailable in production: {exc}") from exc
+                raise RateLimiterUnavailableError(f"PostgreSQL rate_limiter unavailable in production: {exc}") from exc
             logger.warning(f"PostgreSQL rate_limiter unreachable in dev; using SQLite: {exc}")
             return None
 
@@ -123,9 +133,9 @@ class PersistentRateLimiter:
                         count = int(cur.fetchone()[0])
                     conn.commit()
                     return count <= max_requests, count
-                except Exception:
+                except Exception as exc:
                     conn.rollback()
-                    raise
+                    raise RateLimiterUnavailableError(f"Rate limit check failed: {exc}") from exc
 
         with self._get_sqlite_conn() as conn:
             cur = conn.cursor()
@@ -166,9 +176,9 @@ class PersistentRateLimiter:
                         acquired = cur.fetchone() is not None
                     conn.commit()
                     return acquired
-                except Exception:
+                except Exception as exc:
                     conn.rollback()
-                    raise
+                    raise RateLimiterUnavailableError(f"Rate limit check failed: {exc}") from exc
 
         with self._get_sqlite_conn() as conn:
             cur = conn.cursor()
@@ -190,9 +200,9 @@ class PersistentRateLimiter:
                         cur.execute("DELETE FROM crawl_locks WHERE lock_name = %s;", (lock_name,))
                     conn.commit()
                     return
-                except Exception:
+                except Exception as exc:
                     conn.rollback()
-                    raise
+                    raise RateLimiterUnavailableError(f"Rate limit check failed: {exc}") from exc
 
         with self._get_sqlite_conn() as conn:
             cur = conn.cursor()

@@ -62,7 +62,7 @@ class FlowEngine:
             required_attachments=step.required_attachments or [],
             fee_info=step.fee_info,
             submission_routing=sub_routing,
-            lead_time=step.lead_time or "5 to 10 business days",
+            lead_time=step.lead_time or "Varies by permit; verify with issuing division",
             visibility="public",
             document_type="permit_application",
             service=session.flow_id.replace("_flow", "")

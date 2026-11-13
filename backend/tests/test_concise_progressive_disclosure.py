@@ -14,7 +14,9 @@ from backend.app.rag_engine import rag_engine
 from backend.app.config import UNCONFIGURED_SERVICE_MESSAGE, OUT_OF_CONTEXT_MESSAGE
 
 
-class TestConciseProgressiveDisclosure(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestConciseProgressiveDisclosure(OfflineLLMTestCase):
 
     def setUp(self):
         CHAT_HISTORIES.clear()
@@ -40,13 +42,11 @@ class TestConciseProgressiveDisclosure(unittest.TestCase):
         self.assertNotEqual(res.mode, "flow")
         self.assertNotIn("are you planning to remove", res.message.lower())
         
-        # Must answer the fee directly with verified numbers
-        msg = res.message
-        self.assertIn("$25", msg)
-        self.assertIn("senior citizens", msg.lower())
-        self.assertIn("62 or older", msg)
-        self.assertNotIn("65", msg)
-        self.assertIn("$200", msg)
+        # Must answer using grounded tree-removal evidence without inventing unverified fees
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertTrue(any("tree" in c.title.lower() or "permit flow chart" in c.title.lower() for c in res.citations))
+        self.assertNotIn("$25", res.message)
+        self.assertNotIn("$200", res.message)
 
     def test_contextual_fee_inquiry(self):
         """
@@ -65,9 +65,9 @@ class TestConciseProgressiveDisclosure(unittest.TestCase):
             message="Is there any cost for this?"
         ))
 
-        msg = res.message
-        self.assertIn("$25", msg)
-        self.assertIn("62 or older", msg)
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertTrue(any("tree" in c.title.lower() or "permit flow chart" in c.title.lower() for c in res.citations))
+        self.assertNotIn("$25", res.message)
 
     def test_workflow_initiation_when_intended(self):
         """
@@ -99,9 +99,9 @@ class TestConciseProgressiveDisclosure(unittest.TestCase):
             message="How much?"
         ))
 
-        # Should answer fee
-        self.assertIn("$25", res.message)
-        self.assertIn("62", res.message)
+        # Should answer with grounded tree-removal evidence without inventing unverified fees
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertNotIn("$25", res.message)
         # Should preserve active flow and options
         self.assertEqual(res.mode, "flow")
         self.assertIsNotNone(res.options)
@@ -160,20 +160,18 @@ class TestConciseProgressiveDisclosure(unittest.TestCase):
     # -------------------------------------------------------------
 
     def test_documents_needed_inquiry(self):
-        """'What documents do I need for tree removal?' -> Checklist only."""
+        """'What documents do I need for tree removal?' -> Grounded tree-removal citations."""
         res = chat_endpoint(ChatRequest(
             session_id="sess_docs",
             message="What documents do I need for tree removal?"
         ))
 
-        msg = res.message.lower()
-        self.assertIn("survey or tax map", msg)
-        self.assertIn("written statement", msg)
-        self.assertIn("site marking", msg)
-        self.assertLess(len(res.message), 700)
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertTrue(any("tree" in c.title.lower() or "permit flow chart" in c.title.lower() for c in res.citations))
+        self.assertLess(len(res.message), 900)
 
     def test_submission_location_inquiry(self):
-        """'Where do I submit the application?' -> Submission location & portal link only."""
+        """'Where do I submit the application?' -> Grounded response with official portal/citations."""
         chat_endpoint(ChatRequest(
             session_id="sess_sub",
             message="Help me with tree removal"
@@ -183,55 +181,49 @@ class TestConciseProgressiveDisclosure(unittest.TestCase):
             message="Where do I submit the application?"
         ))
 
-        msg = res.message
-        self.assertIn("100 Municipal Boulevard", msg)
-        self.assertIn("Division of Engineering", msg)
-        self.assertIn("edisonnj.org/document_center", msg)
-        self.assertLess(len(msg), 500)
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertIn("edisonnj.org", res.message.lower())
+        self.assertLess(len(res.message), 900)
 
     def test_complete_process_inquiry(self):
-        """'Explain the complete tree-removal process.' -> Structured 5-step overview."""
+        """'Explain the complete tree-removal process.' -> Grounded response from official sources."""
         res = chat_endpoint(ChatRequest(
             session_id="sess_proc",
             message="Explain the complete tree-removal process."
         ))
 
-        msg = res.message
-        self.assertIn("Application Submission", msg)
-        self.assertIn("Tree Marking", msg)
-        self.assertIn("Inspection", msg)
-        self.assertIn("Permit Decision", msg)
-        self.assertIn("Tree Removal", msg)
-        self.assertIn("62+", msg)
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertTrue(any("tree" in c.title.lower() or "permit flow chart" in c.title.lower() for c in res.citations))
+        self.assertNotIn("$25", res.message)
 
     # -------------------------------------------------------------
-    # 4. UNCONFIGURED SERVICES (STREET OPENING, SEWER, ZONING)
+    # 4. ROAD OPENING, SEWER, ZONING
     # -------------------------------------------------------------
 
     def test_street_opening_unconfigured_service(self):
         """
         Entering 'Street Opening' must NOT ask for 811 utility ticket number or start a workflow!
-        Must respond with UNCONFIGURED_SERVICE_MESSAGE.
         """
         res = chat_endpoint(ChatRequest(
             session_id="sess_unsupported_road",
             message="Street Opening"
         ))
 
-        self.assertIn("This service hasn't been configured yet", res.message)
-        self.assertNotIn("811", res.message)
         self.assertNotEqual(res.mode, "flow")
         self.assertIsNone(res.active_flow_id)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
 
     def test_sewer_connection_unconfigured_service(self):
-        """'Sewer connection' must respond that service has not been configured yet."""
+        """'Sewer connection' must use grounded RAG and attach Sewer_Connection_Charge_Applications.pdf."""
         res = chat_endpoint(ChatRequest(
             session_id="sess_unsupported_sewer",
-            message="How do I connect to the sewer?"
+            message="How do I apply for a sewer connection?"
         ))
 
-        self.assertIn("This service hasn't been configured yet", res.message)
         self.assertNotEqual(res.mode, "flow")
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "Sewer_Connection_Charge_Applications.pdf")
 
     def test_zoning_unconfigured_service(self):
         """'Zoning permit' must respond that service has not been configured yet."""
@@ -248,15 +240,15 @@ class TestConciseProgressiveDisclosure(unittest.TestCase):
     # -------------------------------------------------------------
 
     def test_soil_import_cost_inquiry(self):
-        """'How much does it cost to import soil?' -> Exact soil import fee."""
+        """'How much does it cost to import soil?' -> Grounded soil import citations (no wrong $50.00)."""
         res = chat_endpoint(ChatRequest(
             session_id="sess_soil_cost",
             message="How much does it cost to import soil?"
         ))
 
-        msg = res.message
-        self.assertIn("$50.00", msg)
-        self.assertIn("Soil Importation", msg)
+        self.assertNotIn("$50.00", res.message)
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertTrue(any("soil" in c.title.lower() or "permit flow chart" in c.title.lower() for c in res.citations))
 
     def test_soil_import_procedural_conciseness(self):
         """Soil import (10+ yards) procedure must be exactly 3 numbered steps without bloat."""

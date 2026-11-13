@@ -260,10 +260,10 @@ OFFICIAL_FORMS_REGISTRY: Dict[str, FormMetadata] = {
             "If dead/dying/diseased/hazard: Statement from licensed arborist/certified tree professional OR colored photographs of tree condition",
             "Tree Replacement Plan (required if removing more than 25% of trees on property; Ordinance 25-8.2a)",
             "Trees to be removed must be visibly marked on site with ribbon or paint for municipal inspection",
-            "Filing fee of $25 (check/card payable to 'Township of Edison') or Senior ID (age 62+ for fee waiver)"
+            "Filing fee ($25 standard fee, waived for senior citizen property owners age 62+ with ID; $200 for Planning/Zoning Board approval, not waived for seniors) payable to 'Township of Edison'"
         ],
         submission_method="Submit completed application with survey sketch, fee, and photo/arborist proof to the Division of Engineering counter (100 Municipal Blvd) or online portal.",
-        fee_info="$25.00 for single residential lot ($200.00 with Board approval / subdivision; waived for senior citizens age 62+ with ID)",
+        fee_info="$25.00 for single residential lot ($200.00 with Board approval; waived for senior citizen property owners age 62+ with ID on standard applications, not waived for Board approval)",
         is_verified=True,
         last_verified_date="2026-11-04",
         fields=[
@@ -272,71 +272,129 @@ OFFICIAL_FORMS_REGISTRY: Dict[str, FormMetadata] = {
                 label="Property Owner Full Name",
                 field_type="text",
                 required=True,
-                help_text="Full legal name of Edison property owner."
+                help_text="Full legal name of the property owner of record in Edison Township."
             ),
             FormField(
                 name="property_owner_address",
                 label="Property Owner Street Address",
                 field_type="address",
                 required=True,
-                help_text="Mailing address of property owner."
+                help_text="Street address and mailing address of the property owner."
+            ),
+            FormField(
+                name="owner_phone",
+                label="Property Owner Contact Phone Number",
+                field_type="phone",
+                required=True,
+                help_text="Daytime telephone number of the property owner (e.g., 732-555-0123)."
             ),
             FormField(
                 name="applicant_name",
-                label="Applicant Name (Owner / Agent / Contractor)",
+                label="Applicant Name",
                 field_type="text",
                 required=True,
-                help_text="Name of person or company filing application."
+                help_text="Full name of the person or entity applying (Owner, Contractor, or Agent)."
             ),
             FormField(
-                name="permit_address",
-                label="Tree Removal Site Address",
+                name="applicant_mailing_address",
+                label="Applicant Mailing Address",
                 field_type="address",
-                required=True,
-                help_text="Street address where tree(s) are located in Edison."
-            ),
-            FormField(
-                name="block_lot",
-                label="Block and Lot Numbers",
-                field_type="text",
-                required=True,
-                help_text="Municipal tax parcel Block and Lot."
-            ),
-            FormField(
-                name="trees_on_site",
-                label="Total Number of Trees On-Site",
-                field_type="number",
-                required=True,
-                help_text="Count of all mature trees (>= 4 inches DBH) currently on property."
-            ),
-            FormField(
-                name="trees_to_remove",
-                label="Number of Trees to be Removed",
-                field_type="number",
-                required=True,
-                help_text="Total number of trees proposed for removal."
-            ),
-            FormField(
-                name="is_emergency_hazard",
-                label="Is this an emergency situation where tree is dead, dying, or poses imminent danger?",
-                field_type="choice",
-                required=True,
-                options=["Yes, Emergency Dead/Dying/Imminent Hazard", "No, Planned Healthy Tree Removal"],
-                help_text="Emergency removals require photographic proof or arborist letter."
-            ),
-            FormField(
-                name="removal_reason",
-                label="Detailed Reason for Tree Removal",
-                field_type="text",
-                required=True,
-                help_text="Explain reason for removal (per Township Ordinance 25-8.1a6)."
+                required=False,
+                help_text="Mailing address of the applicant (optional if same as property owner address)."
             ),
             FormField(
                 name="applicant_phone",
                 label="Applicant Contact Phone Number",
                 field_type="phone",
                 required=True,
-                help_text="Daytime phone number."
+                help_text="Daytime telephone number of the applicant."
+            ),
+            FormField(
+                name="email_address",
+                label="Contact Email Address",
+                field_type="email",
+                required=False,
+                help_text="Email address for municipal notifications and permit updates (optional)."
+            ),
+            FormField(
+                name="permit_address",
+                label="Subject Property Street Address",
+                field_type="address",
+                required=True,
+                help_text="Physical location/address in Edison where tree removal is proposed."
+            ),
+            FormField(
+                name="block_lot",
+                label="Block and Lot Identification",
+                field_type="text",
+                required=True,
+                help_text="Official municipal tax map Block and Lot numbers (e.g., Block 123, Lot 45)."
+            ),
+            FormField(
+                name="area_of_tract_sqft",
+                label="Area of Tract (Square Feet)",
+                field_type="number",
+                required=False,
+                help_text="Total lot area in square feet (optional; e.g., 15000)."
+            ),
+            FormField(
+                name="area_of_tract_acres",
+                label="Area of Tract (Acres)",
+                field_type="number",
+                required=False,
+                help_text="Total lot area in acres (optional; e.g., 0.34)."
+            ),
+            FormField(
+                name="trees_on_site",
+                label="Total Number of Trees On-Site",
+                field_type="number",
+                required=True,
+                help_text="Total number of existing trees on the property (must be a positive whole number)."
+            ),
+            FormField(
+                name="trees_to_remove",
+                label="Number of Trees to be Removed",
+                field_type="number",
+                required=True,
+                help_text="Number of trees requested for removal (must be a positive whole number and cannot exceed trees on-site)."
+            ),
+            FormField(
+                name="fee_category",
+                label="Municipal Fee Category",
+                field_type="choice",
+                required=True,
+                options=[
+                    "$25.00 for single permit on a single residential lot without a variance",
+                    "$25.00 for single permit on a single lot with an Existing Dwelling",
+                    "$25.00 for single permit on a single lot with Demolition Permit",
+                    "$200.00 for single permit in conjunction with Planning/Zoning Board approval"
+                ],
+                help_text="Select the applicable permit fee category under Edison Township Ordinance Chapter 25."
+            ),
+            FormField(
+                name="board_resolution_number",
+                label="Planning / Zoning Board Resolution Number",
+                field_type="text",
+                required=False,
+                help_text="Planning or Zoning Board Resolution number (required if Board approval category is selected; otherwise optional)."
+            ),
+            FormField(
+                name="is_owner_senior_citizen",
+                label="Property Owner Senior Citizen Fee Exemption",
+                field_type="choice",
+                required=True,
+                options=[
+                    "Yes, property owner is age 62 or older (waives $25 standard fee; proof of age required)",
+                    "No, standard fee applies"
+                ],
+                help_text="Fee is waived for senior citizen property owners (age 62+ with valid ID). Senior exemption applies to property owner only and does not waive the $200 Planning/Zoning Board fee."
+            ),
+            FormField(
+                name="removal_reason",
+                label="Written Statement of Reason for Tree Removal",
+                field_type="text",
+                required=True,
+                help_text="Detailed statement explaining the reason for removal (per Township Ordinance 25-8.1a6; required written statement / attachment)."
             )
         ]
     ),

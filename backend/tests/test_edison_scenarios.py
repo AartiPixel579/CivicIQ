@@ -16,7 +16,9 @@ from backend.app.main import chat_endpoint
 from backend.app.models import ChatRequest
 from backend.app.config import OUT_OF_CONTEXT_MESSAGE, UNCONFIGURED_SERVICE_MESSAGE
 
-class TestEdisonResidentScenarios(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestEdisonResidentScenarios(OfflineLLMTestCase):
 
     def test_scenario_01_construct_new_house(self):
         """Resident asks about construction/zoning permit requirements -> Unconfigured service."""
@@ -49,20 +51,23 @@ class TestEdisonResidentScenarios(unittest.TestCase):
             department_id="engineering"
         )
         res = chat_endpoint(req)
-        self.assertIn("This service hasn't been configured yet", res.message)
-        print("[SCENARIO 3 PASSED] Sewer inquiry identified as unconfigured service")
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "Sewer_Connection_Charge_Applications.pdf")
+        self.assertIsNone(res.active_flow_id)
+        print("[SCENARIO 3 PASSED] Sewer inquiry grounded with official application packet")
 
     def test_scenario_04_road_excavation(self):
-        """Resident asks: 'I need a street excavation permit to connect underground utilities.' -> Unconfigured service."""
+        """Resident asks: 'I need a street excavation permit to connect underground utilities.'"""
         req = ChatRequest(
             session_id="scen_4_excavation",
             message="I need a street excavation permit to connect underground utilities.",
             department_id="engineering"
         )
         res = chat_endpoint(req)
-        self.assertIn("This service hasn't been configured yet", res.message)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
         self.assertNotIn("811", res.message)
-        print("[SCENARIO 4 PASSED] Road excavation query identified as unconfigured service without asking for 811")
+        print("[SCENARIO 4 PASSED] Road excavation query grounded without asking for 811")
 
     def test_scenario_05_documents_needed(self):
         """Resident asks: 'What documents do I need to attach for a tree removal permit?'"""
@@ -72,8 +77,9 @@ class TestEdisonResidentScenarios(unittest.TestCase):
             department_id="engineering"
         )
         res = chat_endpoint(req)
-        self.assertTrue(any(w in res.message.lower() for w in ["survey or tax map", "written statement", "sketch"]))
-        print("[SCENARIO 5 PASSED] Document checklist inquiry answered directly")
+        self.assertGreater(len(res.citations or []), 0)
+        self.assertTrue(any("tree" in c.title.lower() or "permit flow chart" in c.title.lower() for c in res.citations))
+        print("[SCENARIO 5 PASSED] Document inquiry grounded with official citations")
 
     def test_scenario_06_official_form_download(self):
         """Resident explicitly asks: 'Can I download the official application form for tree removal?'"""

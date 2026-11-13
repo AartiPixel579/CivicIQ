@@ -13,6 +13,8 @@ from reportlab.lib import colors
 from ..config import GENERATED_DRAFTS_DIR, DEPARTMENTS_DIR, MUNICIPALITY_NAME
 from ..models.form import FormMetadata
 from .form_schema_service import form_schema_service
+from .form_session_service import form_session_service
+from .form_lifecycle_store import form_lifecycle_store
 
 logger = logging.getLogger("services.pdf_filler")
 
@@ -40,6 +42,11 @@ class PdfFillerService:
         Generates completed draft PDF populated with resident answers.
         Returns: (success, message, local_filepath, download_url)
         """
+        if form_session_service.is_session_cancelled(session_id):
+            return False, "Form session has been cancelled. Cannot generate draft PDF.", None, None
+        if form_session_service.is_session_expired(session_id):
+            return False, "Form session has expired due to 1 hour of inactivity. Cannot generate draft PDF.", None, None
+
         if form_id == "tree_removal":
             return False, "Interactive draft PDF generation for Tree Removal is currently unavailable.", None, None
 
@@ -47,6 +54,7 @@ class PdfFillerService:
         if not form:
             return False, f"Form '{form_id}' not found.", None, None
 
+        form_session_service.begin_pdf_generation(session_id)
         # Create session directory
         session_dir = self.output_base_dir / session_id
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -65,13 +73,27 @@ class PdfFillerService:
                 session_id=session_id
             )
 
-            download_url = f"/api/form-session/download/{session_id}/{draft_filename}"
+            # Re-verify session validity after creation
+            if form_session_service.is_session_cancelled(session_id) or form_session_service.is_session_expired(session_id):
+                output_path.unlink(missing_ok=True)
+                return False, "Form session was cancelled or expired during PDF generation.", None, None
+
+            # Create authoritative positive authorization record in persistent lifecycle store
+            token = form_lifecycle_store.create_draft_authorization(
+                session_id=session_id,
+                filename=draft_filename,
+                retention_seconds=86400
+            )
+
+            download_url = f"/api/form-session/download/{session_id}/{draft_filename}?token={token}"
             logger.info(f"Generated draft PDF for session {session_id}: {output_path}")
             return True, "Draft PDF generated successfully.", str(output_path), download_url
 
         except Exception as e:
             logger.exception(f"Failed to generate draft PDF: {e}")
             return False, f"PDF generation failed: {str(e)}", None, None
+        finally:
+            form_session_service.end_pdf_generation(session_id)
 
     def _create_structured_draft_pdf(
         self,

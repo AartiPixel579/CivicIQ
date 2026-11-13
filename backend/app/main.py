@@ -1,6 +1,8 @@
 import os
 import re
+import time
 import logging
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Header, Depends, Response, Request
@@ -13,7 +15,7 @@ from .config import (
     UNCONFIGURED_SERVICE_MESSAGE,
     CHAT_RATE_LIMIT_PER_MIN, ADMIN_INGEST_RATE_LIMIT_PER_MIN, CRAWL_LOCK_TTL_SECONDS
 )
-from .rate_limiter import rate_limiter
+from .rate_limiter import rate_limiter, RateLimiterUnavailableError
 from .models import (
     ChatRequest, ChatResponse, FlowStartRequest, FlowStepRequest,
     DepartmentConfig, FlowDefinition, RagResult, RagCitation,
@@ -23,7 +25,7 @@ from .models import (
 from .department_loader import registry
 from .flow_engine import flow_engine
 from .rag_engine import rag_engine
-from .vector_store import vector_store
+from .vector_store import vector_store, KnowledgeDatabaseUnavailableError
 from .edison_document_center import EDISON_DOCUMENT_CATALOG, get_document_inventory
 from .services import (
     form_schema_service,
@@ -31,15 +33,130 @@ from .services import (
     form_session_service,
     pdf_filler,
     submission_guidance_service,
-    rag_service
+    rag_service,
+    service_intent_service
 )
+from .services.draft_maintenance import draft_maintenance_service
+from .services.form_lifecycle_store import form_lifecycle_store
 from .llm_provider import llm_manager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("main")
 
-# Multi-turn conversation histories by session_id
-CHAT_HISTORIES = {}
+class BoundedChatHistories:
+    """LRU + TTL bounded in-memory conversation history store."""
+
+    def __init__(self, max_sessions: int = 1000, ttl_seconds: int = 3600, max_messages: int = 50):
+        self.max_sessions = max_sessions
+        self.ttl_seconds = ttl_seconds
+        self.max_messages = max_messages
+        self._store: OrderedDict[str, tuple[float, list]] = OrderedDict()
+
+    def _evict(self, now: float) -> None:
+        expired = [k for k, (ts, _) in self._store.items() if now - ts > self.ttl_seconds]
+        for k in expired:
+            del self._store[k]
+        while len(self._store) > self.max_sessions:
+            self._store.popitem(last=False)
+
+    def _trim(self, history: list) -> list:
+        if len(history) > self.max_messages:
+            del history[:-self.max_messages]
+        return history
+
+    def setdefault(self, key: str, default: Optional[list] = None) -> list:
+        now = time.monotonic()
+        self._evict(now)
+        if key in self._store:
+            _, hist = self._store[key]
+            self._store.move_to_end(key)
+            self._store[key] = (now, self._trim(hist))
+            return hist
+        hist = list(default) if default is not None else []
+        self._store[key] = (now, hist)
+        self._evict(now)
+        return hist
+
+    def get(self, key: str, default=None):
+        now = time.monotonic()
+        self._evict(now)
+        if key in self._store:
+            _, hist = self._store[key]
+            self._store.move_to_end(key)
+            self._store[key] = (now, hist)
+            return hist
+        return default
+
+    def pop(self, key: str, default=None):
+        item = self._store.pop(key, None)
+        return item[1] if item is not None else default
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    def __contains__(self, key: str) -> bool:
+        self._evict(time.monotonic())
+        return key in self._store
+
+    def __len__(self) -> int:
+        self._evict(time.monotonic())
+        return len(self._store)
+
+    def __getitem__(self, key: str) -> list:
+        now = time.monotonic()
+        self._evict(now)
+        _, hist = self._store[key]
+        self._store.move_to_end(key)
+        self._store[key] = (now, hist)
+        return hist
+
+    def __setitem__(self, key: str, value: list) -> None:
+        now = time.monotonic()
+        self._store[key] = (now, self._trim(list(value)))
+        self._store.move_to_end(key)
+        self._evict(now)
+
+
+# Multi-turn conversation histories by session_id (bounded by LRU & TTL)
+CHAT_HISTORIES = BoundedChatHistories()
+
+# Hook form session clearing to immediately purge corresponding chat histories
+form_session_service.set_session_cleared_callback(lambda sid: CHAT_HISTORIES.pop(sid, None))
+
+def filter_non_form_history(history: Optional[List[Dict[str, str]]]) -> List[Dict[str, str]]:
+    """Sanitizes history to ensure no form-session messages or resident PII can reach RAG or external LLMs."""
+    if not history:
+        return []
+    safe_history = []
+    for msg in history:
+        content = msg.get("content", "")
+        if any(marker in content for marker in [
+            "Application Review Summary",
+            "Permit Fee Calculation",
+            "OFFICIAL REVIEW COPY",
+            "Question 1 of",
+            "Question 2 of",
+            "Question 3 of",
+            "Question 4 of",
+            "Question 5 of",
+            "Question 6 of",
+            "Question 7 of",
+            "Question 8 of",
+            "Question 9 of",
+            "Question 10 of",
+            "Question 11 of",
+            "Question 12 of",
+            "Question 13 of",
+            "Question 14 of",
+            "Question 15 of",
+            "Question 16 of",
+            "Question 17 of",
+            "step-by-step",
+            "submission guidance"
+        ]):
+            continue
+        safe_history.append(msg)
+    return safe_history
 
 app = FastAPI(
     title=f"{APP_NAME} - {APP_TAGLINE}",
@@ -126,6 +243,19 @@ def on_startup():
             )
     except Exception as e:
         logger.warning(f"Automatic startup ingestion notice: {e}")
+
+    try:
+        draft_maintenance_service.start()
+    except Exception as e:
+        logger.warning(f"Draft maintenance startup notice: {e}")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    """Cleanly stops background maintenance tasks on application shutdown."""
+    try:
+        draft_maintenance_service.stop()
+    except Exception as e:
+        logger.warning(f"Draft maintenance shutdown notice: {e}")
 
 @app.get("/api/health")
 def health_check():
@@ -218,6 +348,23 @@ def start_flow_endpoint(req: FlowStartRequest):
     if not success or not step:
         raise HTTPException(status_code=400, detail=msg)
 
+    if step.id == "step_emergency_protocol_result":
+        try:
+            has_evidence = rag_engine._has_verified_emergency_tree_evidence(req.department_id)
+        except KnowledgeDatabaseUnavailableError as exc:
+            logger.error(f"Knowledge database unavailable during flow step: {exc}")
+            raise HTTPException(status_code=503, detail="Knowledge database is currently unavailable. Please try again shortly.")
+        if not has_evidence:
+            return ChatResponse(
+                session_id=req.session_id,
+                message=rag_engine._build_unverified_emergency_tree_msg(),
+                mode="rag",
+                citations=[],
+                form_packet=None,
+                department_id=req.department_id,
+                completed=False,
+            )
+
     return ChatResponse(
         session_id=req.session_id,
         message=step.message,
@@ -243,6 +390,23 @@ def advance_flow_step(req: FlowStepRequest):
 
     if not success or not step:
         raise HTTPException(status_code=400, detail=msg)
+
+    if step.id == "step_emergency_protocol_result":
+        try:
+            has_evidence = rag_engine._has_verified_emergency_tree_evidence(session.department_id)
+        except KnowledgeDatabaseUnavailableError as exc:
+            logger.error(f"Knowledge database unavailable during flow step: {exc}")
+            raise HTTPException(status_code=503, detail="Knowledge database is currently unavailable. Please try again shortly.")
+        if not has_evidence:
+            return ChatResponse(
+                session_id=req.session_id,
+                message=rag_engine._build_unverified_emergency_tree_msg(),
+                mode="rag",
+                citations=[],
+                form_packet=None,
+                department_id=session.department_id,
+                completed=False,
+            )
 
     return ChatResponse(
         session_id=req.session_id,
@@ -275,12 +439,19 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
     - Delivers official PDF cards when explicitly requested in context.
     - Strictly returns out-of-context response for non-engineering queries.
     """
-    client_ip = request.client.host if (request and request.client) else "local"
-    allowed, _ = rate_limiter.check_rate_limit(
-        key=f"chat:{client_ip}:{req.session_id}",
-        max_requests=CHAT_RATE_LIMIT_PER_MIN,
-        window_seconds=60,
-    )
+    client_ip = request.client.host if (request and request.client and request.client.host) else "local"
+    try:
+        allowed, _ = rate_limiter.check_rate_limit(
+            key=f"chat_ip:{client_ip}",
+            max_requests=CHAT_RATE_LIMIT_PER_MIN,
+            window_seconds=60,
+        )
+    except RateLimiterUnavailableError as exc:
+        logger.error(f"Rate-limiter database unavailable: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable: rate limiting database is offline."
+        )
     if not allowed:
         raise HTTPException(
             status_code=429,
@@ -293,7 +464,10 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
     # Reset intent
     if msg_clean in ["/reset", "reset", "start over", "cancel", "restart"]:
         flow_engine.reset_session(req.session_id)
-        form_session_service.cancel_session(req.session_id)
+        if msg_clean == "cancel":
+            form_session_service.cancel_session(req.session_id)
+        else:
+            form_session_service.reset_session(req.session_id)
         CHAT_HISTORIES.pop(req.session_id, None)
         return ChatResponse(
             session_id=req.session_id,
@@ -303,11 +477,35 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
             completed=False
         )
 
+    # Intercept messages for Expired or Cancelled Form Sessions (High Priority PII Isolation)
+    lifecycle_status = form_session_service.get_session_lifecycle_status(req.session_id)
+    if lifecycle_status in ("expired", "cancelled"):
+        CHAT_HISTORIES.pop(req.session_id, None)
+        if lifecycle_status == "expired":
+            msg = (
+                "Your form filling session has expired due to 1 hour of inactivity. "
+                "For your privacy and security, all previously entered answers have been safely cleared. "
+                "Please start a fresh application when you are ready."
+            )
+        else:
+            msg = (
+                "Your form filling session has been cancelled and all previously entered answers have been safely cleared. "
+                "Please start a fresh application when you are ready."
+            )
+        return ChatResponse(
+            session_id=req.session_id,
+            message=msg,
+            mode="form_fill",
+            completed=False
+        )
+
     # Case 0: Active Form Filling Session in progress
     active_form_sess = form_session_service.get_session(req.session_id)
     if active_form_sess and active_form_sess.status in ["in_progress", "review"]:
         ok, status_msg, q_resp = form_session_service.answer_question(req.session_id, req.message)
         if q_resp:
+            # PII Isolation: Purge any prior chat history and never append form answers to general history
+            CHAT_HISTORIES.pop(req.session_id, None)
             if q_resp.is_complete:
                 ok_pdf, pdf_msg, pdf_path, pdf_url = pdf_filler.generate_draft_pdf(
                     session_id=req.session_id,
@@ -316,9 +514,6 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
                 )
                 guidance = submission_guidance_service.get_guidance(q_resp.form_id, q_resp.collected_answers)
                 final_msg = f"{q_resp.message}\n\n{guidance['markdown_guidance']}"
-                history.append({"role": "user", "content": req.message})
-                history.append({"role": "assistant", "content": final_msg})
-                CHAT_HISTORIES[req.session_id] = history[-10:]
                 return ChatResponse(
                     session_id=req.session_id,
                     message=final_msg,
@@ -329,9 +524,6 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
                     form_session_info=q_resp.model_dump()
                 )
             else:
-                history.append({"role": "user", "content": req.message})
-                history.append({"role": "assistant", "content": q_resp.message})
-                CHAT_HISTORIES[req.session_id] = history[-10:]
                 return ChatResponse(
                     session_id=req.session_id,
                     message=q_resp.message,
@@ -358,7 +550,8 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
     if (user_accepted_offer or explicit_fill_intent) and (not session or session.completed):
         # Find which form was offered or matches context
         target_form_id = None
-        if "tree" in msg_clean or "tree" in last_bot_msg:
+        norm_msg = service_intent_service.normalize_typos(msg_clean).lower()
+        if "tree" in norm_msg or "tree" in last_bot_msg:
             target_form_id = "tree_removal"
         elif "soil import" in msg_clean or "soil import" in last_bot_msg:
             target_form_id = "soil_import"
@@ -394,9 +587,8 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
 
             ok, start_msg, q_resp = form_session_service.start_session(req.session_id, target_form_id)
             if ok and q_resp:
-                history.append({"role": "user", "content": req.message})
-                history.append({"role": "assistant", "content": q_resp.message})
-                CHAT_HISTORIES[req.session_id] = history[-10:]
+                # PII Isolation: Clear any prior conversation history so earlier messages cannot leak into later RAG/LLM
+                CHAT_HISTORIES.pop(req.session_id, None)
                 return ChatResponse(
                     session_id=req.session_id,
                     message=q_resp.message,
@@ -459,7 +651,7 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
     )
 
     if is_fill_request:
-        m_lower = req.message.lower()
+        m_lower = service_intent_service.normalize_typos(req.message).lower()
         packet = None
         if any(w in m_lower for w in ["tree", "arborist"]):
             packet = rag_engine.match_official_form_packet("tree removal", force=True)
@@ -577,36 +769,98 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
 
     # Case 1: Active procedural flow (advanced by button option selection OR typed natural language!)
     if session and not session.completed:
-        # Check if the user is asking an informational side question (e.g. "How much?", "Is there any fee?", "What about documents?", "Where do I submit it?")
-        from .services.service_intent_service import service_intent_service
+        # Check if the user is asking an independent question (e.g. "Where can I get the application?", "What is the fee?", "What documents do I need?", "What qualifies as an emergency?")
         intent_res = service_intent_service.detect_intent(req.message, history=history)
-        if intent_res.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process", "permit_required"] and not req.selected_option_id:
-            svc_id = intent_res.service_id
-            if svc_id == "other_engineering" and session.flow_id:
-                if "tree" in session.flow_id:
-                    svc_id = "tree_removal"
-                elif "soil" in session.flow_id:
-                    svc_id = "soil_import"
-                elif "street" in session.flow_id or "road" in session.flow_id:
-                    svc_id = "road_opening"
-                elif "site" in session.flow_id:
-                    svc_id = "site_improvement"
+        msg_low = req.message.lower().strip()
+        is_emergency_question = (
+            intent_res.detail_type == "emergency"
+            and any(w in msg_low for w in ["what", "how", "qualify", "qualifies", "mean", "define", "explain", "?"])
+            and not any(w in msg_low for w in ["yes", "it is an emergency", "my tree is"])
+        )
+        is_side_form_request = (
+            intent_res.intent_type == "form_request"
+            and not is_emergency_question
+            and intent_res.detail_type not in ["fee", "documents", "submission", "turnaround", "complete_process", "permit_required", "application_count"]
+            and not req.selected_option_id
+        )
+        is_side_detail_question = (
+            intent_res.detail_type in ["fee", "documents", "submission", "turnaround", "complete_process", "permit_required", "application_count"]
+            or is_emergency_question
+        ) and not req.selected_option_id
 
-            detail_msg = service_intent_service.get_detail_response(svc_id, intent_res.detail_type)
-            if detail_msg:
+        if is_side_form_request:
+            # Answer form/application request directly without advancing or overwriting the active flow step
+            flow_query = req.message
+            if intent_res.service_id == "other_engineering" and session.flow_id:
+                flow_query = f"{session.flow_id.replace('_', ' ')} {req.message}"
+            side_packet = rag_engine.match_official_form_packet(flow_query, "engineering", history=history, force=True)
+            if side_packet:
+                side_msg = (
+                    f"You can access and download the official **{side_packet.form_title}** directly using the link below. "
+                    f"When you are ready, you can continue the workflow above."
+                )
+                side_citations = [
+                    RagCitation(
+                        url=side_packet.pdf_download_url,
+                        title=side_packet.form_title,
+                        category="Application Form",
+                        department_id="engineering",
+                        relevance_score=1.0,
+                        excerpt=f"Official Township application form: {side_packet.form_title}.",
+                        visibility="public",
+                        document_type="application_form",
+                        service=side_packet.form_code,
+                        verification_status="verified",
+                    )
+                ]
                 history.append({"role": "user", "content": req.message})
-                history.append({"role": "assistant", "content": detail_msg})
+                history.append({"role": "assistant", "content": side_msg})
                 CHAT_HISTORIES[req.session_id] = history[-10:]
                 return ChatResponse(
                     session_id=req.session_id,
-                    message=detail_msg,
+                    message=side_msg,
                     mode="flow",
                     options=session.current_step.options if session and session.current_step else [],
+                    form_packet=side_packet,
+                    citations=side_citations,
                     current_step=session.current_step if session else None,
                     active_flow_id=session.flow_id if session else None,
                     department_id=session.department_id if session else "engineering",
-                    completed=False
+                    completed=False,
                 )
+
+        if is_side_detail_question:
+            side_query = req.message
+            if intent_res.service_id == "other_engineering" and session.flow_id:
+                flow_topic = session.flow_id.replace("_flow", "").replace("_", " ")
+                side_query = f"{flow_topic} {req.message}"
+            try:
+                side_rag = rag_engine.answer_query(
+                    query=side_query,
+                    department_id=session.department_id or "engineering",
+                    history=filter_non_form_history(history),
+                )
+            except KnowledgeDatabaseUnavailableError as exc:
+                logger.error(f"Knowledge database unavailable during side question: {exc}")
+                raise HTTPException(
+                    status_code=503,
+                    detail="Knowledge database is currently unavailable. Please try again shortly."
+                )
+            history.append({"role": "user", "content": req.message})
+            history.append({"role": "assistant", "content": side_rag.answer})
+            CHAT_HISTORIES[req.session_id] = history[-10:]
+            return ChatResponse(
+                session_id=req.session_id,
+                message=side_rag.answer,
+                mode="flow",
+                options=session.current_step.options if session and session.current_step else [],
+                form_packet=side_rag.form_packet,
+                citations=side_rag.citations,
+                current_step=session.current_step if session else None,
+                active_flow_id=session.flow_id if session else None,
+                department_id=session.department_id if session else "engineering",
+                completed=False,
+            )
 
         # Check if the user is attempting to completely change topics (e.g. asking about road opening while in tree flow)
         different_flow = rag_engine.detect_flow_intent(req.message, req.department_id)
@@ -620,19 +874,25 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
                 user_text=req.message
             )
             if success and step:
-                if step.id == "step_emergency_protocol_result" and not rag_engine._has_verified_emergency_tree_evidence(session.department_id):
-                    unverified_msg = rag_engine._build_unverified_emergency_tree_msg()
-                    history.append({"role": "user", "content": req.message})
-                    history.append({"role": "assistant", "content": unverified_msg})
-                    return ChatResponse(
-                        session_id=req.session_id,
-                        message=unverified_msg,
-                        mode="rag",
-                        citations=[],
-                        form_packet=None,
-                        department_id=session.department_id,
-                        completed=False,
-                    )
+                if step.id == "step_emergency_protocol_result":
+                    try:
+                        has_evidence = rag_engine._has_verified_emergency_tree_evidence(session.department_id)
+                    except KnowledgeDatabaseUnavailableError as exc:
+                        logger.error(f"Knowledge database unavailable during emergency check: {exc}")
+                        raise HTTPException(status_code=503, detail="Knowledge database is currently unavailable. Please try again shortly.")
+                    if not has_evidence:
+                        unverified_msg = rag_engine._build_unverified_emergency_tree_msg()
+                        history.append({"role": "user", "content": req.message})
+                        history.append({"role": "assistant", "content": unverified_msg})
+                        return ChatResponse(
+                            session_id=req.session_id,
+                            message=unverified_msg,
+                            mode="rag",
+                            citations=[],
+                            form_packet=None,
+                            department_id=session.department_id,
+                            completed=False,
+                        )
                 citations = []
                 if form_packet:
                     citations.append(
@@ -679,6 +939,26 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
             initial_user_text=req.message
         )
         if success and step:
+            if step.id == "step_emergency_protocol_result":
+                try:
+                    has_evidence = rag_engine._has_verified_emergency_tree_evidence(dept_id)
+                except KnowledgeDatabaseUnavailableError as exc:
+                    logger.error(f"Knowledge database unavailable during upfront emergency check: {exc}")
+                    raise HTTPException(status_code=503, detail="Knowledge database is currently unavailable. Please try again shortly.")
+                if not has_evidence:
+                    flow_engine.reset_session(req.session_id)
+                    unverified_msg = rag_engine._build_unverified_emergency_tree_msg()
+                    history.append({"role": "user", "content": req.message})
+                    history.append({"role": "assistant", "content": unverified_msg})
+                    return ChatResponse(
+                        session_id=req.session_id,
+                        message=unverified_msg,
+                        mode="rag",
+                        citations=[],
+                        form_packet=None,
+                        department_id=dept_id,
+                        completed=False,
+                    )
             active_sess = flow_engine.get_session(req.session_id)
             is_completed = active_sess.completed if active_sess else False
             effective_packet = started_packet
@@ -687,7 +967,7 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
                 if flow_def and active_sess.current_step_id in flow_def.steps:
                     step_obj = flow_def.steps[active_sess.current_step_id]
                     if step_obj and step_obj.form_file:
-                        effective_packet = flow_engine._build_form_packet(dept_id, step_obj)
+                        effective_packet = flow_engine._build_form_packet(active_sess, step_obj)
 
             citations = []
             if effective_packet:
@@ -721,16 +1001,24 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
             )
 
     # Case 3: Grounded Conversational RAG with Multi-turn History Context
-    rag_res: RagResult = rag_engine.answer_query(
-        query=req.message,
-        department_id="engineering",
-        history=history
-    )
+    clean_history = filter_non_form_history(history)
+    try:
+        rag_res: RagResult = rag_engine.answer_query(
+            query=req.message,
+            department_id="engineering",
+            history=clean_history
+        )
+    except KnowledgeDatabaseUnavailableError as exc:
+        logger.error(f"Knowledge database unavailable during chat RAG: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="Knowledge database is currently unavailable. Please try again shortly."
+        )
 
     final_message = rag_res.answer
 
     # Check for Form Recommendation and Offer Conversational Fill
-    rec = form_matcher.match_form(req.message, history=history)
+    rec = form_matcher.match_form(req.message, history=clean_history)
     form_rec_dict = None
     
     # Do not present application forms prematurely while clarifying procedural questions
@@ -758,8 +1046,6 @@ def chat_endpoint(req: ChatRequest, request: Request = None):
     safe_citations = []
     for c in (rag_res.citations or []):
         if getattr(c, "visibility", "public") == "internal":
-            continue
-        if "permit flow chart" in c.title.lower() or "flowchart" in getattr(c, "category", "").lower() or "permit_flow_charts" in c.url.lower():
             continue
         base_url = c.url.split("#")[0].split("?")[0]
         if base_url in seen_urls:
@@ -804,17 +1090,21 @@ def trigger_ingestion(
             detail="Admin access forbidden: invalid or missing X-Admin-Key header, or admin access is unconfigured."
         )
 
-    client_ip = request.client.host if (request and request.client) else "local"
-    allowed, _ = rate_limiter.check_rate_limit(
-        key=f"ingest:{client_ip}",
-        max_requests=ADMIN_INGEST_RATE_LIMIT_PER_MIN,
-        window_seconds=60,
-    )
-    if not allowed:
-        raise HTTPException(status_code=429, detail="Admin ingest rate limit exceeded. Please wait before retrying.")
+    client_ip = request.client.host if (request and request.client and request.client.host) else "local"
+    try:
+        allowed, _ = rate_limiter.check_rate_limit(
+            key=f"ingest:{client_ip}",
+            max_requests=ADMIN_INGEST_RATE_LIMIT_PER_MIN,
+            window_seconds=60,
+        )
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Admin ingest rate limit exceeded. Please wait before retrying.")
 
-    if not rate_limiter.acquire_crawl_lock("engineering_ingest", owner=client_ip, ttl_seconds=CRAWL_LOCK_TTL_SECONDS):
-        raise HTTPException(status_code=409, detail="An ingestion or crawl job is already in progress.")
+        if not rate_limiter.acquire_crawl_lock("engineering_ingest", owner=client_ip, ttl_seconds=CRAWL_LOCK_TTL_SECONDS):
+            raise HTTPException(status_code=409, detail="An ingestion or crawl job is already in progress.")
+    except RateLimiterUnavailableError as exc:
+        logger.error(f"Rate-limiter database unavailable during ingest: {exc}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable: rate limiting database is offline.")
 
     try:
         from backend.scripts.ingest import run_ingestion_and_inventory
@@ -845,18 +1135,22 @@ def trigger_admin_crawl(
             detail="Admin access forbidden: invalid or missing X-Admin-Key header."
         )
 
-    client_ip = request.client.host if (request and request.client) else "local"
-    allowed, _ = rate_limiter.check_rate_limit(
-        key=f"crawl:{client_ip}",
-        max_requests=ADMIN_INGEST_RATE_LIMIT_PER_MIN,
-        window_seconds=60,
-    )
-    if not allowed:
-        raise HTTPException(status_code=429, detail="Admin crawl rate limit exceeded. Please wait before retrying.")
+    client_ip = request.client.host if (request and request.client and request.client.host) else "local"
+    try:
+        allowed, _ = rate_limiter.check_rate_limit(
+            key=f"crawl:{client_ip}",
+            max_requests=ADMIN_INGEST_RATE_LIMIT_PER_MIN,
+            window_seconds=60,
+        )
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Admin crawl rate limit exceeded. Please wait before retrying.")
 
-    lock_key = f"crawl_{department_id}"
-    if not rate_limiter.acquire_crawl_lock(lock_key, owner=client_ip, ttl_seconds=CRAWL_LOCK_TTL_SECONDS):
-        raise HTTPException(status_code=409, detail=f"A crawl for '{department_id}' is already in progress.")
+        lock_key = f"crawl_{department_id}"
+        if not rate_limiter.acquire_crawl_lock(lock_key, owner=client_ip, ttl_seconds=CRAWL_LOCK_TTL_SECONDS):
+            raise HTTPException(status_code=409, detail=f"A crawl for '{department_id}' is already in progress.")
+    except RateLimiterUnavailableError as exc:
+        logger.error(f"Rate-limiter database unavailable during crawl: {exc}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable: rate limiting database is offline.")
 
     try:
         from backend.scripts.incremental_ingest import run_incremental_ingestion
@@ -1009,13 +1303,39 @@ def generate_form_pdf(session_id: str = Query(...)):
     )
 
 @app.get("/api/form-session/download/{session_id}/{filename}")
-def download_draft_pdf(session_id: str, filename: str):
+def download_draft_pdf(session_id: str, filename: str, token: Optional[str] = Query(None)):
     """
     Securely streams the generated draft PDF.
-    Prevents path traversal and validates file existence.
+    Enforces positive authorization via persistent lifecycle store, cryptographic token verification,
+    and path containment.
     """
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", session_id or ""):
+        raise HTTPException(status_code=400, detail="Invalid session identifier.")
+
     safe_filename = Path(filename).name
-    file_path = GENERATED_DRAFTS_DIR / session_id / safe_filename
+    if not safe_filename or safe_filename in (".", "..") or safe_filename != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+
+    if form_session_service.is_session_cancelled(session_id):
+        raise HTTPException(status_code=410, detail="Form session has been cancelled. Draft download is revoked.")
+    if form_session_service.is_session_expired(session_id):
+        raise HTTPException(status_code=410, detail="Form session has expired. Draft download is no longer available.")
+
+    # Positive Authorization Whitelist Verification
+    token_str = token if isinstance(token, str) else None
+    auth_ok, auth_detail = form_lifecycle_store.verify_draft_authorization(session_id, safe_filename, token=token_str)
+    if not auth_ok:
+        if "Revoked" in auth_detail or "Expired" in auth_detail:
+            raise HTTPException(status_code=410, detail=auth_detail)
+        elif "Forbidden" in auth_detail:
+            raise HTTPException(status_code=403, detail=auth_detail)
+        else:
+            raise HTTPException(status_code=404, detail=auth_detail)
+
+    base_dir = GENERATED_DRAFTS_DIR.resolve()
+    file_path = (base_dir / session_id / safe_filename).resolve()
+    if not file_path.is_relative_to(base_dir):
+        raise HTTPException(status_code=400, detail="Invalid file path.")
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Requested draft PDF document not found.")
 

@@ -18,6 +18,11 @@ from .pgvector_store import PgVectorStore, mask_db_url
 
 logger = logging.getLogger("vector_store")
 
+
+class KnowledgeDatabaseUnavailableError(RuntimeError):
+    """Raised when the required production knowledge database is unavailable."""
+
+
 class SQLiteVectorStore:
     def __init__(self, db_path: Path = VECTOR_DB_PATH):
         self.db_path = Path(db_path)
@@ -621,7 +626,7 @@ class UnifiedVectorStore:
     ) -> List[RagCitation]:
         if IS_PRODUCTION:
             if not self._use_pg:
-                raise RuntimeError(
+                raise KnowledgeDatabaseUnavailableError(
                     f"Production vector store query failed: PostgreSQL/pgvector is unavailable. "
                     f"Details: {self._production_db_error or 'Connection offline'}. "
                     "Silent fallback to SQLite is strictly disabled in production."
@@ -632,7 +637,7 @@ class UnifiedVectorStore:
                 self._use_pg = False
                 self._production_db_error = f"pgvector query error: {mask_db_url(str(e))}"
                 logger.error(f"❌ [pgvector] Runtime error in production: {self._production_db_error}")
-                raise RuntimeError(
+                raise KnowledgeDatabaseUnavailableError(
                     f"Production PostgreSQL/pgvector search failed: {self._production_db_error}. "
                     "Silent fallback to SQLite is strictly disabled in production."
                 ) from e

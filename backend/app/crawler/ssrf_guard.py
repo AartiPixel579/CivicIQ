@@ -46,6 +46,9 @@ def _is_unsafe_ip(ip_str: str) -> bool:
     ):
         return True
 
+    if getattr(ip, "ipv4_mapped", None) is not None and _is_unsafe_ip(str(ip.ipv4_mapped)):
+        return True
+
     # Explicitly block AWS/GCP/Azure metadata IP 169.254.169.254
     if str(ip) == "169.254.169.254":
         return True

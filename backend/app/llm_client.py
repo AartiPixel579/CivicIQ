@@ -27,6 +27,31 @@ def sanitize_contact_info(text: str) -> str:
     text = re.sub(r'\b[A-Za-z0-9._%+-]+@edisonnj\.(?:gov|org)\b', 'https://www.edisonnj.org/document_center/index.php', text)
     return text.strip()
 
+
+_RAW_METADATA_KEY_RE = re.compile(
+    r'(?:^|\n|\s{2,})(?:DOCUMENT|MUNICIPALITY|DEPARTMENT|DOCUMENT TYPE|SERVICE|OFFICIAL URL|SUBMISSION INTAKE|FEE STRUCTURE|OFFICIAL SUMMARY|PDF PAGE)\s*:[^\n]*(?=\s{2,}(?:DOCUMENT|MUNICIPALITY|DEPARTMENT|DOCUMENT TYPE|SERVICE|OFFICIAL URL|SUBMISSION INTAKE|FEE STRUCTURE|OFFICIAL SUMMARY|PDF PAGE)\s*:|$|\n)',
+    flags=re.IGNORECASE,
+)
+
+
+def strip_raw_metadata(text: str, title: str = "") -> str:
+    """
+    Removes internal ingestion metadata headers (DOCUMENT:, MUNICIPALITY:, FEE STRUCTURE:, etc.)
+    so raw chunk metadata is never exposed to residents or treated as verified rule text.
+    """
+    if not text:
+        return ""
+    cleaned = _RAW_METADATA_KEY_RE.sub(" ", text)
+    cleaned = re.sub(r'\s*\[Page\s+\d+\]\s*', ' ', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    if not cleaned or len(cleaned) < 15:
+        label = title or "this official document"
+        return (
+            f"The official {label} is available for download, but machine-readable text could not be "
+            f"extracted from this scanned PDF to verify specific fees or requirements."
+        )
+    return cleaned
+
 MUNICIPAL_SYSTEM_PROMPT = f"""You are {APP_NAME}, {APP_TAGLINE} for the {MUNICIPALITY_NAME} Department of Engineering.
 You assist residents with municipal engineering inquiries: road opening permits, street excavations, tree removal clearances, soil importation/exportation, site improvements, and official permit procedures from edisonnj.org.
 
@@ -41,17 +66,9 @@ RULES:
 5. If the user asks about topics outside Edison Engineering (such as animal shelter, health, clerk, elections, marriage, taxes, or general non-engineering questions), respond strictly with:
 "{OUT_OF_CONTEXT_MESSAGE}"
 6. Maintain conversation context from previous messages. If the user refers to "this", "it", or previous answers, take reference of the prior context to continue the procedure seamlessly.
-7. TREE REMOVAL GUIDANCE (Official Edison Township Decision Logic):
-   - First ask whether the resident is planning to remove one or more trees.
-   - If YES, ask if it is an emergency situation where the tree is dead, dying, or poses an imminent danger.
-     * If YES (Emergency): Give only the 3 emergency steps (1. Photo proof/arborist letter, 2. Remove tree immediately, 3. Submit application concurrently). Do NOT dump fees, survey maps, or turnaround times unless asked.
-     * If NO (Planned): A Tree Removal Permit is required prior to removal.
-   - If NO trees are being removed, ask whether the project is part of a subdivision or requires a demolition permit from Code Enforcement.
-     * If YES: A Tree Removal Permit is required.
-     * If NO: A Tree Removal Permit is NOT required under the flowchart.
-8. STRICT PRIVACY & CONTACT RULE: Do NOT provide any physical street addresses, building counters, phone numbers, or staff emails to the user unless specifically asked for submission location, and always direct users to the official municipal website: https://www.edisonnj.org/document_center/index.php.
-9. Always maintain a friendly, helpful, and professional tone as Your Edison Township Buddy.
-10. INTERNAL KNOWLEDGE RULE: Do not cite, link, or mention internal flowcharts or internal decision tree documents to the resident. Always provide public application forms and guidelines.
+7. STRICT PRIVACY & CONTACT RULE: Do NOT provide any physical street addresses, building counters, phone numbers, or staff emails to the user unless specifically asked for submission location, and always direct users to the official municipal website: https://www.edisonnj.org/document_center/index.php.
+8. Always maintain a friendly, helpful, and professional tone as Your Edison Township Buddy.
+9. INTERNAL KNOWLEDGE RULE: Do not cite, link, or mention internal flowcharts or internal decision tree documents to the resident. Always provide public application forms and guidelines. Never repeat raw metadata labels such as DOCUMENT:, MUNICIPALITY:, DEPARTMENT:, FEE STRUCTURE:, or SUBMISSION INTAKE: in your response.
 """
 
 class LLMClient:
@@ -72,12 +89,13 @@ class LLMClient:
         if not citations:
             return OUT_OF_CONTEXT_MESSAGE
 
-        # Build context from top citations with provenance
+        # Build context from top citations with provenance (never expose raw metadata headers)
         context_blocks = []
         for idx, c in enumerate(citations[:4]):
             page_info = f"\nPDF Page: {c.pdf_page_number}" if getattr(c, "pdf_page_number", None) else ""
+            clean_excerpt = strip_raw_metadata(c.excerpt, title=c.title)
             context_blocks.append(
-                f"[Source {idx+1}]: {c.title}\nURL: {c.url}{page_info}\nExcerpt: {c.excerpt}"
+                f"[Source {idx+1}]: {c.title}\nURL: {c.url}{page_info}\nExcerpt: {clean_excerpt}"
             )
         context_str = "\n\n".join(context_blocks)
 
@@ -107,7 +125,7 @@ class LLMClient:
         # 2. Transparent grounded retrieval synthesis (Offline / Local Deterministic Fallback)
         logger.info("Using transparent grounded retrieval synthesis fallback.")
         primary = citations[0]
-        cleaned_primary = sanitize_contact_info(primary.excerpt).strip()
+        cleaned_primary = sanitize_contact_info(strip_raw_metadata(primary.excerpt, title=primary.title)).strip()
 
         # 1. Direct answer in the first sentence
         parts = re.split(r'(?<=[.!?])\s+', cleaned_primary)
@@ -127,7 +145,7 @@ class LLMClient:
 
         if len(citations) > 1:
             for c in citations[1:3]:
-                c_clean = sanitize_contact_info(c.excerpt).strip()
+                c_clean = sanitize_contact_info(strip_raw_metadata(c.excerpt, title=c.title)).strip()
                 c_parts = re.split(r'(?<=[.!?])\s+', c_clean)
                 c_first = c_parts[0].strip() if c_parts else c_clean
                 if c_first and len(c_first) > 10:

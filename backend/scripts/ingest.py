@@ -518,38 +518,8 @@ def run_ingestion_and_inventory(
             doc_chunks: List[Dict] = []
 
             if page_entries:
-                # Index summary header on page 1 + page-attributed PDF chunks
-                intro_chunks = chunk_text(meta_header)
+                # Index actual extracted page-attributed PDF text (metadata is stored in structured columns, not raw text chunks)
                 chunk_idx = 0
-                for c_txt in intro_chunks:
-                    doc_chunks.append({
-                        "id": f"{dept}_{url_hash}_v{doc_version}_{chunk_idx}",
-                        "client_id": client_id,
-                        "department_id": dept,
-                        "document_id": doc_id,
-                        "url": url,
-                        "referring_url": root_url,
-                        "title": title,
-                        "category": doc_type,
-                        "content_type": content_type,
-                        "source_type": source_type,
-                        "pdf_page_number": item.get("page_number") or 1,
-                        "chunk_index": chunk_idx,
-                        "content": c_txt,
-                        "word_count": len(c_txt.split()),
-                        "retrieval_date": now_iso,
-                        "last_modified": None,
-                        "etag": None,
-                        "content_hash": content_hash,
-                        "is_active": True,
-                        "version_id": doc_version,
-                        "visibility": item.get("visibility", "public"),
-                        "document_type": doc_type,
-                        "service": item.get("service", service_name),
-                        "verification_status": item.get("verification_status", "verified"),
-                    })
-                    chunk_idx += 1
-
                 for page_num, p_text in page_entries:
                     for c_txt in chunk_text(f"[Page {page_num}] {p_text}"):
                         doc_chunks.append({
@@ -580,7 +550,15 @@ def run_ingestion_and_inventory(
                         })
                         chunk_idx += 1
             else:
-                for idx, c_txt in enumerate(chunk_text(meta_header)):
+                # For scanned PDFs or HTML index without extracted text, store a clean natural-language placeholder
+                # without raw metadata key-value headers or unverified fee claims.
+                fallback_desc = (
+                    f"{title} ({MUNICIPALITY_NAME} {dept.capitalize()}): {official_summary}"
+                    if official_summary
+                    else f"{title} is an official {MUNICIPALITY_NAME} document."
+                )
+                ver_status = "needs_ocr" if extraction_status == "scanned_pdf_needs_ocr" else item.get("verification_status", "verified")
+                for idx, c_txt in enumerate(chunk_text(fallback_desc)):
                     doc_chunks.append({
                         "id": f"{dept}_{url_hash}_v{doc_version}_{idx}",
                         "client_id": client_id,

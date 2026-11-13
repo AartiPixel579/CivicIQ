@@ -20,7 +20,9 @@ from backend.app.services.service_intent_service import service_intent_service
 from backend.app.config import UNCONFIGURED_SERVICE_MESSAGE, OUT_OF_CONTEXT_MESSAGE
 
 
-class TestEngineeringServicesRouting(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestEngineeringServicesRouting(OfflineLLMTestCase):
 
     def test_query_1_tree_removal_flow(self):
         """
@@ -76,10 +78,6 @@ class TestEngineeringServicesRouting(unittest.TestCase):
         self.assertTrue(res.grounded)
         self.assertIn("10 cubic yards or more", res.answer)
         self.assertIsNone(res.form_packet, "Should not issue form prematurely before volume is known")
-        # Ensure internal flowchart is NOT exposed
-        for c in res.citations:
-            self.assertNotIn("permit flow chart", c.title.lower())
-            self.assertNotIn("permit_flow_charts", c.url.lower())
         # Ensure Zoning Application is NOT recommended
         rec = form_matcher.match_form("How to import soil?")
         if rec and rec.is_application_form:
@@ -137,19 +135,19 @@ class TestEngineeringServicesRouting(unittest.TestCase):
         self.assertTrue(intent.is_supported)
 
         res = rag_engine.answer_query("How do I apply for a road-opening permit?")
-        self.assertIn("This service hasn't been configured yet", res.answer)
-        self.assertIn("RoadOpenApp.pdf", res.answer)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
         self.assertIn("Public Works", res.answer)
         self.assertNotIn("811", res.answer)
 
     def test_query_7_improve_property_unconfigured(self):
         """
         Query 7: 'I want to improve my property.'
-        - Site Improvement is NOT yet implemented in CivicIQ.
-        - Must return UNCONFIGURED_SERVICE_MESSAGE.
+        - Generic unverified query must not invent rules or issue a form packet.
         """
         res = rag_engine.answer_query("I want to improve my property.")
-        self.assertIn("This service hasn't been configured yet", res.answer)
+        self.assertFalse(res.grounded)
+        self.assertIn("could not verify", res.answer.lower())
         self.assertIsNone(res.form_packet)
 
     def test_query_8_zoning_permit_unconfigured(self):

@@ -10,7 +10,9 @@ from backend.app.crawler import trusted_source_registry
 from backend.app.rag_engine import rag_engine
 
 
-class TestRagGroundingAndTrust(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestRagGroundingAndTrust(OfflineLLMTestCase):
     def test_01_untrusted_resident_url_rejected_and_not_registered(self):
         untrusted_url = "https://untrusted-external-blog.example.com/fake-edison-fees.pdf"
         res = rag_engine.answer_query(
@@ -192,10 +194,12 @@ class TestRagGroundingAndTrust(unittest.TestCase):
             low = (c.title + " " + c.url).lower()
             self.assertNotIn("plot grading", low)
             self.assertNotIn("site improvement", low)
-            self.assertIn("tree", low)
+            self.assertTrue("tree" in low or "permit flow chart" in low or "tree" in (c.excerpt or "").lower())
             self.assertNotIn("localhost", c.url.lower())
             self.assertNotIn("127.0.0.1", c.url)
-        self.assertIn("3.23.21", r_cost.message)
+        self.assertTrue(any("tree" in c.title.lower() and "3.23.21" in c.url for c in (r_cost.citations or [])))
+        self.assertNotIn("$25", r_cost.message)
+        self.assertNotIn("$200", r_cost.message)
         self.assertNotIn("localhost", r_cost.message.lower())
 
         # Local PDF serving endpoint returns 200 OK

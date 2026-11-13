@@ -74,13 +74,13 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
             with patch.object(
                 manager.providers["gemini"],
                 "generate",
-                return_value=LLMResponse(content="", model="gemini-1.5-flash", provider="gemini", success=False, error="503 Quota")
+                return_value=LLMResponse(content="", model="gemini-3.8-flash", provider="gemini", success=False, error="503 Quota")
             ):
                 with patch.object(manager.providers["groq"], "is_available", return_value=True):
                     with patch.object(
                         manager.providers["groq"],
                         "generate",
-                        return_value=LLMResponse(content="Groq response", model="llama-3.3-70b", provider="groq", success=True)
+                        return_value=LLMResponse(content="Groq response", model="qwen/qwen3.8-27b", provider="groq", success=True)
                     ) as mock_groq:
                         resp = manager.generate("Hello Edison")
                         self.assertTrue(resp.is_fallback)
@@ -99,13 +99,13 @@ class TestCivicIQFullSystemSuite(unittest.TestCase):
             with patch.object(
                 manager.providers["gemini"],
                 "generate",
-                return_value=LLMResponse(content="", model="gemini-1.5-flash", provider="gemini", success=False, error="Down")
+                return_value=LLMResponse(content="", model="gemini-3.8-flash", provider="gemini", success=False, error="Down")
             ):
                 with patch.object(manager.providers["groq"], "is_available", return_value=True):
                     with patch.object(
                         manager.providers["groq"],
                         "generate",
-                        return_value=LLMResponse(content="", model="groq-llama", provider="groq", success=False, error="429")
+                        return_value=LLMResponse(content="", model="qwen/qwen3.8-27b", provider="groq", success=False, error="429")
                     ):
                         resp = manager.generate("Inquiry for Edison")
                         self.assertFalse(resp.success)

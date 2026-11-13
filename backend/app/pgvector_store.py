@@ -5,6 +5,7 @@ PostgreSQL vector database store utilizing the pgvector extension for native vec
 
 import os
 import logging
+from contextlib import closing
 from typing import List, Dict, Optional
 import numpy as np
 import psycopg2
@@ -60,7 +61,14 @@ class PgVectorStore:
         if not active_url:
             raise ValueError("DATABASE_URL is not configured.")
         conn = psycopg2.connect(active_url, connect_timeout=10)
-        register_vector(conn)
+        try:
+            register_vector(conn)
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            raise
         return conn
 
     def check_connection(self) -> bool:
@@ -69,10 +77,11 @@ class PgVectorStore:
         if not active_url:
             return False
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1;")
-                    return True
+            with closing(self._get_connection()) as conn:
+                with conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1;")
+                        return True
         except Exception as e:
             logger.debug(f"pgvector connection test note: {mask_db_url(str(e))}")
             return False
@@ -85,7 +94,7 @@ class PgVectorStore:
             return False
         try:
             # Transaction 1: Schema creation (extension, table, base indexes)
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 with conn.cursor() as cur:
                     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
                     cur.execute(f"""
@@ -146,7 +155,7 @@ class PgVectorStore:
 
             # Transaction 2: Vector index creation (HNSW with graceful IVFFlat fallback)
             # Table is safely committed above, so an HNSW rollback will never drop the table.
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 hnsw_succeeded = False
                 try:
                     with conn.cursor() as cur:
@@ -189,13 +198,14 @@ class PgVectorStore:
 
     def clear(self, department_id: Optional[str] = None):
         """Deletes chunks from PostgreSQL."""
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                if department_id:
-                    cur.execute("DELETE FROM municipal_knowledge_chunks WHERE department_id = %s;", (department_id,))
-                else:
-                    cur.execute("DELETE FROM municipal_knowledge_chunks;")
-            conn.commit()
+        with closing(self._get_connection()) as conn:
+            with conn:
+                with conn.cursor() as cur:
+                    if department_id:
+                        cur.execute("DELETE FROM municipal_knowledge_chunks WHERE department_id = %s;", (department_id,))
+                    else:
+                        cur.execute("DELETE FROM municipal_knowledge_chunks;")
+                conn.commit()
         logger.info(f"pgvector store cleared (dept: {department_id or 'all'}).")
 
     def add_chunks(self, chunks: List[Dict]):
@@ -273,10 +283,14 @@ class PgVectorStore:
                 embedding = EXCLUDED.embedding;
         """
 
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                execute_batch(cur, upsert_sql, records, page_size=100)
-            conn.commit()
+        with closing(self._get_connection()) as conn:
+            try:
+                with conn.cursor() as cur:
+                    execute_batch(cur, upsert_sql, records, page_size=100)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
         logger.info(f"Successfully upserted {len(chunks)} chunks into pgvector.")
 
@@ -346,7 +360,7 @@ class PgVectorStore:
                 embedding = EXCLUDED.embedding;
         """
 
-        with self._get_connection() as conn:
+        with closing(self._get_connection()) as conn:
             try:
                 with conn.cursor() as cur:
                     execute_batch(cur, upsert_sql, records, page_size=100)
@@ -381,17 +395,21 @@ class PgVectorStore:
 
     def deactivate_document(self, department_id: str, document_id: str):
         """Marks all chunks for a removed document inactive without deleting historical metadata."""
-        with self._get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "UPDATE municipal_knowledge_chunks SET is_active = FALSE WHERE department_id = %s AND document_id = %s;",
-                    (department_id, document_id)
-                )
-            conn.commit()
+        with closing(self._get_connection()) as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE municipal_knowledge_chunks SET is_active = FALSE WHERE department_id = %s AND document_id = %s;",
+                        (department_id, document_id)
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def get_active_document_versions(self, department_id: str) -> Dict[str, Dict]:
         """Returns active document metadata keyed by document_id."""
-        with self._get_connection() as conn:
+        with closing(self._get_connection()) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT document_id, MAX(version_id), MAX(content_hash), MAX(etag), MAX(last_modified), MAX(url)
@@ -440,7 +458,7 @@ class PgVectorStore:
             LIMIT %s;
         """
 
-        with self._get_connection() as conn:
+        with closing(self._get_connection()) as conn:
             with conn.cursor() as cur:
                 cur.execute(sql, (
                     query_vec,
@@ -494,7 +512,7 @@ class PgVectorStore:
 
     def get_stats(self) -> Dict:
         """Returns active chunk statistics from PostgreSQL."""
-        with self._get_connection() as conn:
+        with closing(self._get_connection()) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT count(*), count(distinct department_id), count(distinct url)

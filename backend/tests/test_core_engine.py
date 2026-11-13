@@ -4,7 +4,9 @@ from backend.app.rag_engine import rag_engine
 from backend.app.flow_engine import flow_engine
 from backend.app.vector_store import vector_store
 
-class TestEdisonCoreEngine(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestEdisonCoreEngine(OfflineLLMTestCase):
     def test_department_registry(self):
         depts = registry.get_departments()
         self.assertGreaterEqual(len(depts), 1)

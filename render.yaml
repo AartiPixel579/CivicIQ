@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
@@ -24,11 +24,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-1.5-flash
+        value: gemini-3.8-flash
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: qwen/qwen3.8-27b
       - key: TRUSTED_ROOT_URL
         value: https://www.edisonnj.org/document_center/index.php
       - key: CRAWL_MAX_DEPTH

@@ -547,6 +547,23 @@ OUT_OF_CONTEXT_PATTERNS = [
     r'\b(quantum|fusion|space shuttle|orbital|rocket|astronomy)\b'
 ]
 
+# Explicit typographical alias mapping for supported tree-removal keywords.
+# Uses strict word boundaries (\b...\b) to ensure partial substrings in unrelated words
+# (e.g., distress, mattress, actress, buttress, waitress, fortress, stress, extreme, street)
+# are never modified.
+TREE_TYPO_ALIASES: Dict[str, str] = {
+    "gtress": "trees",
+    "tress": "trees",
+    "gtree": "tree",
+    "gtrees": "trees",
+    "tre": "tree",
+}
+
+_TREE_TYPO_PATTERNS: List[Tuple[re.Pattern, str]] = [
+    (re.compile(rf"\b{re.escape(typo)}\b", re.IGNORECASE), replacement)
+    for typo, replacement in TREE_TYPO_ALIASES.items()
+]
+
 
 class ServiceIntentService:
     """
@@ -556,13 +573,27 @@ class ServiceIntentService:
     and resolves progressive disclosure context across multi-turn sessions.
     """
 
+    @classmethod
+    def normalize_typos(cls, text: str) -> str:
+        """
+        Conservatively normalizes explicit typographical errors in resident queries
+        using strict word boundaries without altering unrelated vocabulary.
+        Preserves original casing structure while mapping recognized typo tokens.
+        """
+        if not text:
+            return ""
+        normalized = text
+        for pattern, replacement in _TREE_TYPO_PATTERNS:
+            normalized = pattern.sub(replacement, normalized)
+        return normalized
+
     def detect_detail_type(self, query: str) -> str:
         """
         Classifies whether the user is asking for a specific detail:
         'procedure', 'fee', 'documents', 'submission', 'turnaround',
         'form_fields', 'complete_process', or 'emergency'.
         """
-        q = (query or "").lower().strip()
+        q = (self.normalize_typos(query) or "").lower().strip()
 
         # 1. Complete process / How to apply
         if any(phrase in q for phrase in [
@@ -592,7 +623,7 @@ class ServiceIntentService:
             return "fee"
 
         # 3. Documents / Attachments / Checklist
-        if any(phrase in q for phrase in [
+        if q in ("documents", "document", "docs", "requirements", "checklist", "attachments") or any(phrase in q for phrase in [
             "what documents", "what document", "what do i need", "documents do i need",
             "what about documents", "attachment", "attachments", "checklist", "paperwork",
             "papers do i need", "what to attach", "required documents", "what is required to attach",
@@ -622,6 +653,13 @@ class ServiceIntentService:
             "how to fill", "filling out", "fill out the form", "how do i fill", "form instructions"
         ]):
             return "form_fields"
+
+        # 6.5 Application count / multiple items per application
+        if re.search(
+            r'\b(separate\s+(?:applications?|forms?|permits?)|multiple\s+(?:applications?|forms?|permits?)|one\s+application|single\s+application|per\s+tree|each\s+tree|how\s+many\s+(?:applications?|forms?|permits?))\b',
+            q,
+        ) or ("separate" in q and any(w in q for w in ["application", "applications", "form", "forms", "permit", "permits"])):
+            return "application_count"
 
         # 7. Emergency condition inquiry (e.g. "The tree is dangerous. Can I remove it?")
         has_hazard_word = any(w in q for w in ["dangerous", "hazard", "dead", "dying", "falling", "fallen", "cracked", "storm damage", "imminent danger", "emergency"])
@@ -762,7 +800,7 @@ class ServiceIntentService:
         query: str,
         history: Optional[List[Dict[str, str]]] = None
     ) -> ServiceIntentResult:
-        q = (query or "").lower().strip()
+        q = (self.normalize_typos(query) or "").lower().strip()
 
         # 0. Greeting & small-talk check: never trigger municipal workflows or history bleed
         has_domain_keyword = any(w in q for w in [
@@ -832,6 +870,18 @@ class ServiceIntentService:
                     has_flowchart=False
                 )
 
+        # 1.5 Explicit meta out-of-context queries (e.g. "unrelated to Engineering")
+        if re.search(r'\b(unrelated to engineering|outside (?:of )?engineering|not (?:related to|about) engineering|non[- ]engineering)\b', q):
+            return ServiceIntentResult(
+                service_id="out_of_context",
+                service_name="Out of Engineering Context",
+                confidence=1.0,
+                is_ambiguous=False,
+                intent_type="general_info",
+                detail_type="procedure",
+                has_flowchart=False
+            )
+
         # 2. Check for form download / application request intent
         has_form_keyword = bool(re.search(r'\b(form|application|pdf|packet|download|checklist)\b', q))
         intent_type = "form_request" if has_form_keyword else "procedure_inquiry"
@@ -845,9 +895,9 @@ class ServiceIntentService:
         last_bot_msg = ""
         if history:
             for msg in history[-4:]:
-                context_text += " " + msg.get("content", "").lower()
+                context_text += " " + self.normalize_typos(msg.get("content", "")).lower()
                 if msg.get("role") == "user":
-                    user_context_text += " " + msg.get("content", "").lower()
+                    user_context_text += " " + self.normalize_typos(msg.get("content", "")).lower()
             for msg in reversed(history):
                 if msg.get("role") in ["assistant", "model", "system"]:
                     last_bot_msg = msg.get("content", "").lower()

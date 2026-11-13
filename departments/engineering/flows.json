@@ -366,16 +366,14 @@
           "form_title": "Township of Edison Tree Permit Application (Removal / Replacement / Conservation)",
           "form_file": "3.23.21 tree permit application.pdf",
           "department_id": "engineering",
-          "fill_in_instructions": "1. Complete Property Owner data, Subject Permit Site Address, Block, and Lot.\n2. Note Number of Trees On-Site and Number of Trees to be Removed.\n3. Check appropriate fee category ($25 for single residential lot; waived for senior citizens age 62+ with ID).\n4. Attach colored photos of dead/dying tree OR arborist certification, and Survey/Tax Map sketch.\n5. Mark tree on site with ribbon or paint for inspection.\n6. Submit concurrently with removal to the Division of Engineering.",
+          "fill_in_instructions": "1. Complete Property Owner data, Subject Permit Site Address, Block, and Lot.\n2. Attach colored photographs of the dead, dying, or hazardous tree OR a certified letter from a licensed arborist/forester.\n3. Submit the Tree Removal Permit Application concurrently with removal via the Edison Document Center.",
           "required_attachments": [
-            "Survey or Tax Map sketch showing property lines, existing trees with diameter, and removal trees marked with an X",
-            "Colored photographs of dead/dying/hazard tree condition OR certified statement from licensed arborist/forester",
-            "Written statement detailing the reason for removal (Township Ordinance 25-8.1a6)",
-            "Payment of $25 fee (check/card payable to 'Township of Edison') or Senior ID (age 62+)"
+            "Colored photographs of the dead, dying, or imminent-danger tree OR certified letter from a licensed arborist/forester (Permit Flow Charts, Page 3)",
+            "Concurrent Tree Removal Permit Application"
           ],
           "fee_info": {
-            "amount": "$25.00 for single residential lot (Waived for Senior Citizens age 62+ with ID; $200 with Board approval / subdivision)",
-            "payment_methods": "Check or Credit Card payable to 'Township of Edison'"
+            "amount": "Fee details could not be verified from extracted text (the official 3.23.21 application PDF is a scanned image); please confirm current fees with the Division of Engineering.",
+            "payment_methods": "Verify with Division of Engineering"
           },
           "submission_routing": {
             "department": "Township of Edison Department of Planning and Engineering",

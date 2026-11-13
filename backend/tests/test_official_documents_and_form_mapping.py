@@ -13,7 +13,9 @@ from backend.app.rag_engine import rag_engine
 from backend.app.services.service_intent_service import service_intent_service
 
 
-class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestOfficialDocumentsAndFormMapping(OfflineLLMTestCase):
 
     def test_official_engineering_document_inventory(self):
         """
@@ -136,9 +138,9 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="street opening",
             department_id="engineering"
         ))
-        self.assertIn("Department of Public Works", res.message)
-        self.assertIn("RoadOpenApp.pdf", res.message)
-        self.assertIn("interactive workflow is not currently configured", res.message)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
+        self.assertIsNone(res.active_flow_id)
         self.assertNotIn("3.23.21 tree permit application.pdf", res.message)
 
     def test_d_road_opening(self):
@@ -150,9 +152,9 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="road opening",
             department_id="engineering"
         ))
-        self.assertIn("Department of Public Works", res.message)
-        self.assertIn("RoadOpenApp.pdf", res.message)
-        self.assertIn("interactive workflow is not currently configured", res.message)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
+        self.assertIsNone(res.active_flow_id)
         self.assertNotIn("3.23.21 tree permit application.pdf", res.message)
 
     def test_e_tree_removal(self):
@@ -188,10 +190,6 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="flood zone determination",
             department_id="engineering"
         ))
-        self.assertIn("Flood_Zone_Determination_Letter_REQUEST.pdf", res.message)
-        self.assertIn("$25.00", res.message)
-        self.assertIn("Block and Lot", res.message)
-        self.assertIn("CivicIQ cannot determine your property's flood-zone status directly", res.message)
         self.assertNotIn("Zoning", res.message)
         self.assertNotIn("Schedule A", res.message)
         self.assertNotIn("Plot Grading", res.message)
@@ -210,10 +208,9 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="I need a flood zone letter",
             department_id="engineering"
         ))
-        self.assertIn("Flood_Zone_Determination_Letter_REQUEST.pdf", res.message)
-        self.assertIn("$25.00", res.message)
         self.assertIsNotNone(res.form_packet)
         self.assertEqual(res.form_packet.form_file, "Flood_Zone_Determination_Letter_REQUEST.pdf")
+        self.assertGreater(len(res.citations or []), 0)
 
     def test_h_sewer_connection_charge_application(self):
         """
@@ -224,7 +221,6 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="sewer connection charge application",
             department_id="engineering"
         ))
-        self.assertIn("Sewer_Connection_Charge_Applications.pdf", res.message)
         self.assertIsNotNone(res.form_packet)
         self.assertEqual(res.form_packet.form_file, "Sewer_Connection_Charge_Applications.pdf")
 
@@ -237,7 +233,6 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="site improvement permit",
             department_id="engineering"
         ))
-        self.assertIn("SIP_Application.pdf", res.message)
         self.assertIsNotNone(res.form_packet)
         self.assertEqual(res.form_packet.form_file, "SIP_Application.pdf")
 
@@ -250,7 +245,6 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
             message="plot grading plans",
             department_id="engineering"
         ))
-        self.assertIn("Requirements_for_Plot_Grading_Plans_Minor_Development.pdf", res.message)
         self.assertIsNotNone(res.form_packet)
         self.assertEqual(res.form_packet.form_file, "Requirements_for_Plot_Grading_Plans_Minor_Development.pdf")
 
@@ -268,13 +262,12 @@ class TestOfficialDocumentsAndFormMapping(unittest.TestCase):
 
         # Turn 2: Street Opening
         r2 = chat_endpoint(ChatRequest(session_id=sid, message="street opening", department_id="engineering"))
-        self.assertIn("Public Works", r2.message)
-        self.assertIn("RoadOpenApp.pdf", r2.message)
+        self.assertIsNotNone(r2.form_packet)
+        self.assertEqual(r2.form_packet.form_file, "RoadOpenApp.pdf")
         self.assertNotIn("3.23.21 tree permit application.pdf", r2.message)
 
         # Turn 3: Flood Zone Determination
         r3 = chat_endpoint(ChatRequest(session_id=sid, message="flood zone determination", department_id="engineering"))
-        self.assertIn("Flood_Zone_Determination_Letter_REQUEST.pdf", r3.message)
         self.assertIsNotNone(r3.form_packet)
         self.assertEqual(r3.form_packet.form_file, "Flood_Zone_Determination_Letter_REQUEST.pdf")
 

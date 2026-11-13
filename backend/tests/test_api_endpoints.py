@@ -17,7 +17,9 @@ from backend.app.config import ADMIN_API_KEY
 from backend.app.vector_store import vector_store
 from fastapi import HTTPException
 
-class TestApiEndpoints(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestApiEndpoints(OfflineLLMTestCase):
     def test_01_health_check(self):
         res = health_check()
         self.assertEqual(res["status"], "healthy")

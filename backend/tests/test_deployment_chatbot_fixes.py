@@ -38,7 +38,9 @@ from backend.app.models.form_session import (
 )
 
 
-class TestDeploymentChatbotFixes(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestDeploymentChatbotFixes(OfflineLLMTestCase):
 
     # =========================================================================
     # 1. Completely Disable Interactive Form Filling in Deployment
@@ -347,24 +349,22 @@ class TestDeploymentChatbotFixes(unittest.TestCase):
             message="Street Opening / Excavation",
             department_id="engineering"
         ))
-        self.assertIn("interactive workflow is not currently configured", res.message)
-        self.assertIn("RoadOpenApp.pdf", res.message)
-        self.assertNotIn("811", res.message)
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
         self.assertIsNone(res.active_flow_id)
 
     def test_14_specific_road_excavation_query_provides_pdf_and_unconfigured_notice(self):
         """
         Specific query like 'Road excavation application' or 'Street Opening permit'
-        must clearly state interactive workflow is not configured, provide RoadOpenApp.pdf,
-        and not claim CivicIQ can process it.
+        must provide RoadOpenApp.pdf and grounded DPW guidance without starting a flow.
         """
         res1 = chat_endpoint(ChatRequest(
             session_id="test_road_open_specific_1",
             message="Street Opening permit",
             department_id="engineering"
         ))
-        self.assertIn("interactive workflow is not currently configured", res1.message)
-        self.assertIn("RoadOpenApp.pdf", res1.message)
+        self.assertIsNotNone(res1.form_packet)
+        self.assertEqual(res1.form_packet.form_file, "RoadOpenApp.pdf")
         self.assertIsNone(res1.active_flow_id)
 
         res2 = chat_endpoint(ChatRequest(
@@ -372,8 +372,8 @@ class TestDeploymentChatbotFixes(unittest.TestCase):
             message="Road excavation application",
             department_id="engineering"
         ))
-        self.assertIn("interactive workflow is not currently configured", res2.message)
-        self.assertIn("RoadOpenApp.pdf", res2.message)
+        self.assertIsNotNone(res2.form_packet)
+        self.assertEqual(res2.form_packet.form_file, "RoadOpenApp.pdf")
         self.assertIsNone(res2.active_flow_id)
 
     # =========================================================================

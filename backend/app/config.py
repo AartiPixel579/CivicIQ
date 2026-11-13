@@ -1,8 +1,15 @@
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
 # Base Paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+if load_dotenv is not None:
+    load_dotenv(dotenv_path=BASE_DIR / ".env", override=False)
 DEPARTMENTS_DIR = BASE_DIR / "departments"
 DATA_DIR = BASE_DIR / "backend" / "data"
 VECTOR_DB_PATH = DATA_DIR / "vector_store.db"
@@ -89,12 +96,12 @@ LLM_FALLBACK_PROVIDERS = [
 
 # 1. Primary: Google Gemini API (Free tier supported models)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 # 2. Fallback: Groq API (Free developer tier supported models)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", os.getenv("OPENAI_API_KEY", ""))
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 # Timeout & Retry settings
 LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "30"))

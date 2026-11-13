@@ -8,8 +8,9 @@ import logging
 from typing import List, Optional, Tuple, Dict, Any
 from .vector_store import vector_store
 from .department_loader import registry
-from .llm_client import llm_client
+from .llm_client import llm_client, strip_raw_metadata
 from .crawler import trusted_source_registry
+from .crawler.ssrf_guard import canonicalize_url_for_dedup
 from .models import RagCitation, RagResult, FormIssuanceDetails, SubmissionRouting, FeeInfo, FlowOption
 from .config import (
     MUNICIPALITY_NAME, MUNICIPAL_ADDRESS,
@@ -30,6 +31,7 @@ class GroundedRagEngine:
         """
         t = text.lower()
         out_of_context_patterns = [
+            r'\b(unrelated to engineering|outside (?:of )?engineering|not (?:related to|about) engineering|non[- ]engineering)\b',
             r'\b(cat|cats|dog|dogs|pet|pets|animal|animals|adopt|adoption|kitten|kittens|puppy|puppies|shelter|rabies|spay|neuter)\b',
             r'\b(restaurant|food|kitchen|vital statistics|birth certificate|death certificate|marriage license|marriage)\b',
             r'\b(election|elections|voting|voter|ballot|council minutes|landlord|charity|bingo|tax|taxes|assessor)\b',
@@ -67,7 +69,7 @@ class GroundedRagEngine:
         if intent.service_id in ["soil_import", "soil_export", "soil_movement"]:
             return None
 
-        text = user_text.lower().strip()
+        text = service_intent_service.normalize_typos(user_text).lower().strip()
         # Only start a flow when the resident actively wants procedural guidance or workflow initiation
         is_workflow_initiation = any(phrase in text for phrase in [
             "want to", "planning to", "need to", "help me with", "guide me", "procedure",
@@ -97,7 +99,8 @@ class GroundedRagEngine:
         Uses conversation history to accurately identify WHICH form is needed.
         Explicit service/document names in current message take absolute priority over history.
         """
-        t = text.lower().strip()
+        from .services.service_intent_service import service_intent_service
+        t = service_intent_service.normalize_typos(text).lower().strip()
 
         # Check for explicit form/download/application requests
         has_form_keyword = bool(re.search(r'\b(form|application|pdf|packet|checklist)\b', t))
@@ -127,16 +130,15 @@ class GroundedRagEngine:
                 form_file="3.23.21 tree permit application.pdf",
                 pdf_download_url="/api/forms/engineering/3.23.21%20tree%20permit%20application.pdf",
                 department_id="engineering",
-                fill_in_instructions="1. Complete Property Owner data, Subject Permit Site Address, Block, and Lot.\n2. Note Number of Trees On-Site and Number of Trees to be Removed.\n3. Check appropriate fee category ($25 for single residential lot; waived for senior citizens age 62+ with ID).\n4. Attach colored photos of dead/dying tree OR arborist certification, and Survey/Tax Map sketch.\n5. Visibly mark trees on site with ribbon or paint for inspection.\n6. Submit to the Division of Engineering.",
+                fill_in_instructions="Download and complete the official Township of Edison Tree Permit Application (3.23.21). For emergency removals (dead, dying, or imminent danger), attach photographic proof or a certified letter from a licensed arborist/forester and submit concurrently with removal.",
                 required_attachments=[
-                    "Survey or Tax Map sketch showing property lines, existing trees with diameter, and removal trees marked with an X",
-                    "Colored photographs of dead/dying/hazard tree condition OR certified statement from licensed arborist/forester",
-                    "Written statement detailing the reason for removal (Township Ordinance 25-8.1a6)",
-                    "Payment of $25 fee (payable to 'Township of Edison') or Senior ID (age 62+)"
+                    "Completed Tree Permit Application (3.23.21)",
+                    "For emergency removal: photographic proof OR certified letter from a licensed arborist/forester (Permit Flow Charts, Page 3)",
+                    "Verify any additional attachments and current fees with the Division of Engineering (the 3.23.21 PDF is a scanned image)"
                 ],
                 fee_info=FeeInfo(
-                    amount="$25.00 for single residential lot (Waived for Senior Citizens age 62+ with ID; $200 with Board approval / subdivision)",
-                    payment_methods="Check or Credit Card payable to 'Township of Edison'"
+                    amount="Fee could not be verified from extracted text (the 3.23.21 application PDF is a scanned image); please confirm current fees with the Division of Engineering.",
+                    payment_methods="Verify with Division of Engineering"
                 ),
                 submission_routing=SubmissionRouting(
                     department="Township of Edison Department of Planning and Engineering",
@@ -144,7 +146,7 @@ class GroundedRagEngine:
                     building_address="100 Municipal Boulevard, Edison, NJ 08817",
                     digital_upload_url="https://www.edisonnj.org/document_center/index.php"
                 ),
-                lead_time="5 to 10 business days for field inspection sign-off"
+                lead_time="Varies by permit; verify with Division of Engineering"
             )
 
         def _soil_import_packet():
@@ -154,15 +156,13 @@ class GroundedRagEngine:
                 form_file="Forms_Soil_Importation_Appl.pdf",
                 pdf_download_url="/api/forms/engineering/Forms_Soil_Importation_Appl.pdf",
                 department_id="engineering",
-                fill_in_instructions="1. Enter applicant, property owner, and contractor details.\n2. Detail source of fill and attach clean fill lab certification.\n3. Attach property survey showing proposed grading.\n4. Submit to Division of Engineering.",
+                fill_in_instructions="Complete the official Township of Edison Soil Importation Permit Application (Subsection 32-2.3 / NJAC 7:26D) and attach the required plans, lab testing, and Freehold Soil Conservation District documentation.",
                 required_attachments=[
-                    "Certified laboratory clean fill analysis",
-                    "Property survey showing proposed fill placement and grading contours",
-                    "Designated truck haul route plan",
-                    "Soil importation review fee and engineering escrow deposit"
+                    "Completed Soil Importation Permit Application",
+                    "Supporting plans, State-certified lab testing (NJAC 7:26D), and Freehold Soil Conservation District letter as specified on the application"
                 ],
                 fee_info=FeeInfo(
-                    amount="Standard municipal soil review fee and engineering escrow deposit",
+                    amount="See official Soil Importation Permit Application PDF for applicable application fee and escrow requirements",
                     payment_methods="Check payable to 'Township of Edison'"
                 ),
                 submission_routing=SubmissionRouting(
@@ -170,7 +170,7 @@ class GroundedRagEngine:
                     desk="Engineering Division",
                     digital_upload_url="https://www.edisonnj.org/document_center/index.php"
                 ),
-                lead_time="7 to 10 Business Days"
+                lead_time="Varies by permit; verify with Division of Engineering"
             )
 
         def _soil_export_packet():
@@ -180,15 +180,13 @@ class GroundedRagEngine:
                 form_file="Forms_Soil_Exportation_App.pdf",
                 pdf_download_url="/api/forms/engineering/Forms_Soil_Exportation_App.pdf",
                 department_id="engineering",
-                fill_in_instructions="1. Enter parcel details and volume of soil to be removed in cubic yards.\n2. Attach topographical survey and cut/fill cross-sections.\n3. Detail truck route through Edison.\n4. Submit to Division of Engineering.",
+                fill_in_instructions="Complete the official Township of Edison Soil Exportation Permit Application and attach the contour map, haul route, and Freehold Soil Conservation District documentation listed on the form.",
                 required_attachments=[
-                    "Topographical survey with cut/fill calculations by NJ licensed engineer/surveyor",
-                    "Soil erosion and sediment control certification",
-                    "Truck haul route plan",
-                    "Filing fee and restoration bond"
+                    "Completed Soil Exportation Permit Application",
+                    "Contour map, truck haul route, and Freehold Soil Conservation District letter as specified on the application"
                 ],
                 fee_info=FeeInfo(
-                    amount="Standard municipal soil exportation fee schedule",
+                    amount="See official Soil Exportation Permit Application PDF for applicable application fee requirements",
                     payment_methods="Check payable to 'Township of Edison'"
                 ),
                 submission_routing=SubmissionRouting(
@@ -196,7 +194,7 @@ class GroundedRagEngine:
                     desk="Engineering Division",
                     digital_upload_url="https://www.edisonnj.org/document_center/index.php"
                 ),
-                lead_time="7 to 10 Business Days"
+                lead_time="Varies by permit; verify with Division of Engineering"
             )
 
         def _road_opening_packet():
@@ -208,21 +206,19 @@ class GroundedRagEngine:
                 department_id="public_works",
                 fill_in_instructions="Download the official blank application to complete and submit directly to the Department of Public Works.",
                 required_attachments=[
-                    "NJ One Call (811) ticket confirmation",
-                    "Trench excavation dimensions sketch",
-                    "Certificate of Insurance ($1,000,000 liability naming Township of Edison)",
-                    "Application fee ($150) and restoration guarantee bond ($5,000)"
+                    "Completed Street Opening Application (RoadOpenApp.pdf)",
+                    "Verify required bonds, insurance, and NJ 811 requirements with the Department of Public Works (RoadOpenApp.pdf is a scanned image)"
                 ],
                 fee_info=FeeInfo(
-                    amount="$150.00 application fee; $5,000.00 restoration guarantee bond",
-                    payment_methods="Check payable to 'Township of Edison'"
+                    amount="Fee could not be verified from extracted text (RoadOpenApp.pdf is a scanned image); please confirm with the Department of Public Works.",
+                    payment_methods="Verify with Department of Public Works"
                 ),
                 submission_routing=SubmissionRouting(
                     department="Department of Public Works",
                     desk="Department of Public Works, 100 Municipal Blvd, Edison, NJ 08817 (dpw@edisonnj.gov)",
                     digital_upload_url="https://www.edisonnj.org/document_center/RoadOpenApp.pdf?t=202409111411520"
                 ),
-                lead_time="5 to 7 business days"
+                lead_time="Verify with Department of Public Works"
             )
 
         def _flood_zone_packet():
@@ -307,14 +303,12 @@ class GroundedRagEngine:
                 form_file="Sewer_Connection_Charge_Applications.pdf",
                 pdf_download_url="/api/forms/engineering/Sewer_Connection_Charge_Applications.pdf",
                 department_id="engineering",
-                fill_in_instructions="1. Fill in property owner and location details.\n2. Detail fixture units breakdown.\n3. Attach engineering utility lateral plan.\n4. Submit to Sewer Utility / Engineering Division.",
+                fill_in_instructions="Complete the official Sewer Connection Charge Application (note: this application is for payment of the connection charge only and is not a permit to connect).",
                 required_attachments=[
-                    "Completed Sewer Connection Charge Application",
-                    "Fixture unit calculation schedule",
-                    "Civil engineering utility lateral connection plan"
+                    "Completed Sewer Connection Charge Application"
                 ],
                 fee_info=FeeInfo(
-                    amount="Calculated by total fixture units per municipal rate schedule",
+                    amount="See official Sewer Connection Charge Application PDF for residential unit and commercial/industrial acreage/frontage calculations",
                     payment_methods="Check payable to 'Township of Edison'"
                 ),
                 submission_routing=SubmissionRouting(
@@ -323,7 +317,7 @@ class GroundedRagEngine:
                     building_address="100 Municipal Boulevard, Edison, NJ 08817",
                     digital_upload_url="https://www.edisonnj.org/document_center/index.php"
                 ),
-                lead_time="Standard municipal review turnaround"
+                lead_time="Varies by permit; verify with Sewer Utility / Engineering"
             )
 
         def _site_improvement_packet():
@@ -333,16 +327,13 @@ class GroundedRagEngine:
                 form_file="SIP_Application.pdf",
                 pdf_download_url="/api/forms/engineering/SIP_Application.pdf",
                 department_id="engineering",
-                fill_in_instructions="1. Complete Site Improvement Permit application and 25-point checklist.\n2. Attach approved Zoning Permit.\n3. Attach two (2) signed and sealed sets of engineering grading and drainage plans.\n4. Submit to Division of Engineering with 5% inspection escrow.",
+                fill_in_instructions="Complete the Site Improvement Permit Application and checklist, and attach the required Zoning Permit and signed/sealed engineering plans.",
                 required_attachments=[
-                    "Completed 25-point engineering checklist signed by applicant",
-                    "Copy of approved Zoning Permit and stamped plans",
-                    "Two (2) signed and sealed engineering site/grading plans",
-                    "Stormwater infiltration design and soil erosion sediment control measures",
-                    "5% construction cost engineering inspection escrow deposit"
+                    "Completed Site Improvement Permit Application and checklist",
+                    "Required Zoning Permit and signed/sealed engineering plans as listed in SIP_Application.pdf"
                 ],
                 fee_info=FeeInfo(
-                    amount="Application review fee plus 5% construction cost inspection escrow",
+                    amount="See SIP_Application.pdf for inspection fee (5% of construction cost or $500, whichever is greater) and plan revision fees",
                     payment_methods="Check payable to 'Township of Edison'"
                 ),
                 submission_routing=SubmissionRouting(
@@ -351,7 +342,7 @@ class GroundedRagEngine:
                     building_address="100 Municipal Boulevard, Edison, NJ 08817",
                     digital_upload_url="https://www.edisonnj.org/document_center/index.php"
                 ),
-                lead_time="10 to 15 business days"
+                lead_time="Varies by permit; verify with Division of Engineering"
             )
 
         # 1. Check if CURRENT QUERY explicitly specifies the service (Priority 1)
@@ -370,7 +361,7 @@ class GroundedRagEngine:
         if any(w in t for w in ["site improvement", "site improvements", "sip application", "sip permit", "site checklist", "impervious coverage"]):
             return _site_improvement_packet()
 
-        if any(w in t for w in ["road opening", "street opening", "pavement opening", "road-opening", "street opening permit", "road opening permit"]):
+        if any(w in t for w in ["road opening", "street opening", "road excavation", "street excavation", "pavement opening", "road-opening", "street opening permit", "road opening permit"]):
             return _road_opening_packet()
 
         is_explicit_soil_import = any(w in t for w in ["soil import", "soil importation", "import soil", "import fill", "fill dirt", "bring soil", "topsoil import"])
@@ -391,8 +382,6 @@ class GroundedRagEngine:
                 c = msg.get("content", "").lower()
                 if any(w in c for w in ["flood zone", "floodplain", "flood_zone_determination"]):
                     return _flood_zone_packet()
-                if any(w in c for w in ["permit flow chart", "permit_flow_charts"]):
-                    return _permit_flowchart_packet()
                 if any(w in c for w in ["plot grading", "requirements_for_plot_grading"]):
                     return _plot_grading_packet()
                 if any(w in c for w in ["sewer", "sewer_connection"]):
@@ -407,6 +396,8 @@ class GroundedRagEngine:
                     return _soil_export_packet()
                 if any(w in c for w in ["tree removal", "tree permit", "3.23.21 tree permit application.pdf", "emergency condition of the tree"]):
                     return _tree_packet()
+                if any(w in c for w in ["permit flow chart", "permit_flow_charts"]) and msg.get("role") == "user":
+                    return _permit_flowchart_packet()
 
         return None
 
@@ -998,62 +989,87 @@ class GroundedRagEngine:
                 return phrase
         return None
 
+    def _filter_citations(
+        self,
+        raw_citations: List[RagCitation],
+        service_id: Optional[str] = None,
+        top_k: int = 6,
+        include_flowcharts: bool = False,
+    ) -> List[RagCitation]:
+        """Filters internal/off-service citations, deduplicates canonical URLs, and strips raw metadata."""
+        seen_urls = set()
+        citations: List[RagCitation] = []
+        for c in raw_citations:
+            if getattr(c, "visibility", "public") == "internal":
+                continue
+            is_flowchart = (
+                "permit flow chart" in c.title.lower()
+                or "flowchart" in (getattr(c, "category", "") or "").lower()
+                or "permit_flow_charts" in c.url.lower()
+            )
+            if is_flowchart and not include_flowcharts:
+                continue
+            c_doc_name = ((c.title or "") + " " + (getattr(c, "service", "") or "") + " " + c.url).lower()
+            if not is_flowchart:
+                if service_id == "tree_removal":
+                    if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "soil", "plot grading", "plot_grading", "site improvement", "sip", "flood"]):
+                        continue
+                    if not any(w in c_doc_name for w in ["tree", "arborist", "conservation"]):
+                        continue
+                elif service_id in ["soil_import", "soil_export", "soil_movement"]:
+                    if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "tree", "site improvement", "sip", "flood"]):
+                        continue
+                    if "soil" not in c_doc_name:
+                        continue
+                elif service_id == "plot_grading":
+                    if not any(w in c_doc_name for w in ["grading", "plot"]):
+                        continue
+                elif service_id == "site_improvement":
+                    if not any(w in c_doc_name for w in ["site improvement", "sip"]):
+                        continue
+                elif service_id == "sewer_connection":
+                    if "sewer" not in c_doc_name:
+                        continue
+                elif service_id == "flood_zone":
+                    if "flood" not in c_doc_name:
+                        continue
+                elif service_id == "road_opening":
+                    if not any(w in c_doc_name for w in ["road", "street", "open", "excavat"]):
+                        continue
+
+            base_url = canonicalize_url_for_dedup(c.url.split("#")[0].split("?")[0])
+            if base_url in seen_urls:
+                continue
+            seen_urls.add(base_url)
+            cleaned_excerpt = strip_raw_metadata(c.excerpt, title=c.title)
+            citations.append(c.model_copy(update={"excerpt": cleaned_excerpt}))
+            if len(citations) >= top_k:
+                break
+        return citations
+
     def _retrieve_filtered_citations(
         self,
         query: str,
         department_id: str = "engineering",
         service_id: Optional[str] = None,
         top_k: int = 4,
+        include_flowcharts: bool = False,
     ) -> List[RagCitation]:
         """Retrieves active public citations from the vector store, filtering internal flowcharts and cross-service noise."""
+        from .services.service_intent_service import service_intent_service
+        search_query = service_intent_service.normalize_typos(query)
         raw_citations: List[RagCitation] = vector_store.search(
-            query=query,
+            query=search_query,
             department_id=department_id,
             top_k=max(top_k, 6),
             threshold=SIMILARITY_THRESHOLD,
         )
-        seen_urls = set()
-        citations: List[RagCitation] = []
-        for c in raw_citations:
-            if getattr(c, "visibility", "public") == "internal":
-                continue
-            if (
-                "permit flow chart" in c.title.lower()
-                or "flowchart" in (getattr(c, "category", "") or "").lower()
-                or "permit_flow_charts" in c.url.lower()
-            ):
-                continue
-            c_doc_name = (c.title + " " + (getattr(c, "service", "") or "") + " " + c.url).lower()
-            if service_id == "tree_removal":
-                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "soil", "plot grading", "plot_grading", "site improvement", "sip", "flood"]):
-                    continue
-                if not any(w in c_doc_name for w in ["tree", "arborist", "conservation"]):
-                    continue
-            elif service_id in ["soil_import", "soil_export", "soil_movement"]:
-                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "tree", "site improvement", "sip", "flood"]):
-                    continue
-                if "soil" not in c_doc_name:
-                    continue
-            elif service_id == "plot_grading":
-                if not any(w in c_doc_name for w in ["grading", "plot"]):
-                    continue
-            elif service_id == "site_improvement":
-                if not any(w in c_doc_name for w in ["site improvement", "sip"]):
-                    continue
-            elif service_id == "sewer_connection":
-                if "sewer" not in c_doc_name:
-                    continue
-            elif service_id == "flood_zone":
-                if "flood" not in c_doc_name:
-                    continue
-            base_url = c.url.split("#")[0].split("?")[0]
-            if base_url in seen_urls:
-                continue
-            seen_urls.add(base_url)
-            citations.append(c)
-            if len(citations) >= top_k:
-                break
-        return citations
+        return self._filter_citations(
+            raw_citations,
+            service_id=service_id,
+            top_k=top_k,
+            include_flowcharts=include_flowcharts,
+        )
 
     def answer_query(
         self,
@@ -1155,52 +1171,78 @@ class GroundedRagEngine:
             (intent_res.service_id == "unconfigured_service" and any(w in query.lower() for w in ["road open", "street open", "road excavation", "street excavation", "pavement cut", "road-opening", "street opening permit", "road opening permit", "excavation permit", "excavate driveway", "dig in the street", "open the road", "street removal"]))
         )
         if is_road_or_street:
-            msg = (
-                "Street Opening and Road Excavation applications in Edison Township are handled under the **Department of Public Works** (not Engineering).\n\n"
-                "An interactive workflow is not currently configured for Street Opening & Road Excavation in CivicIQ. "
-                "This service hasn't been configured yet for interactive processing. "
-                "However, you can download the official blank [Township of Edison Street Opening Application (PDF)](/api/forms/engineering/RoadOpenApp.pdf) "
-                "to complete and submit directly to the Department of Public Works."
+            packet = self.match_official_form_packet(query, history=history, force=True)
+            citations = self._retrieve_filtered_citations(
+                query,
+                department_id=None,
+                service_id="road_opening",
+                top_k=4,
+                include_flowcharts=True,
+            )
+            if not citations:
+                return RagResult(
+                    answer=(
+                        "I could not verify specific Street Opening / Road Excavation requirements from the currently indexed "
+                        "official text (RoadOpenApp.pdf is a scanned image). Please contact the Township of Edison Department of Public Works "
+                        "or check the official [Document Center](https://www.edisonnj.org/document_center/index.php)."
+                    ),
+                    citations=[],
+                    grounded=False,
+                    query=query,
+                    form_packet=packet,
+                    options=[]
+                )
+            answer = llm_client.generate_answer(
+                query=query,
+                citations=citations,
+                history=history,
+                department_name="Department of Public Works",
             )
             return RagResult(
-                answer=msg,
-                citations=[],
+                answer=answer,
+                citations=citations,
                 grounded=True,
                 query=query,
-                form_packet=None,
+                form_packet=packet,
                 options=[]
             )
 
         # Category 2: Grounded guidance & official document for services without interactive workflow
         # (Flood Zone, Permit Flow Chart, Plot Grading, Sewer Connection, Site Improvement)
         if intent_res.service_id in ["flood_zone", "permit_flowchart", "plot_grading", "sewer_connection", "site_improvement"]:
-            detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type, history=history)
-            if not detail_msg:
-                detail_msg = service_intent_service.get_detail_response(intent_res.service_id, "procedure", history=history)
             packet = self.match_official_form_packet(query, history=history, force=True)
-            citations = self._retrieve_filtered_citations(query, department_id=dept, service_id=intent_res.service_id, top_k=4)
-            if packet and not citations:
-                digital_url = packet.submission_routing.digital_upload_url if packet.submission_routing else ""
-                is_generic_index = not digital_url or digital_url.rstrip("/").endswith("document_center/index.php")
-                citation_url = packet.pdf_download_url if is_generic_index else digital_url
-                citations.append(
-                    RagCitation(
-                        url=citation_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id="engineering",
-                        relevance_score=1.0,
-                        excerpt=f"Official Township Application Form: {packet.form_title}. Form Code: {packet.form_code}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service=packet.form_code,
-                        verification_status="verified"
-                    )
+            citations = self._retrieve_filtered_citations(
+                query,
+                department_id=dept,
+                service_id=intent_res.service_id,
+                top_k=4,
+                include_flowcharts=True,
+            )
+            if not citations:
+                return RagResult(
+                    answer=(
+                        "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
+                        "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                        "or contact the Division of Engineering directly."
+                    ),
+                    citations=[],
+                    grounded=False,
+                    query=query,
+                    form_packet=packet,
+                    options=[]
                 )
-            return RagResult(
-                answer=detail_msg,
+            dept_config = registry.get_department(dept)
+            dept_name = dept_config.name if dept_config else "Department of Engineering"
+            answer = llm_client.generate_answer(
+                query=query,
                 citations=citations,
-                grounded=bool(citations),
+                history=history,
+                department_name=dept_name,
+            )
+            return RagResult(
+                answer=answer,
+                citations=citations,
+                grounded=True,
                 query=query,
                 form_packet=packet,
                 options=[]
@@ -1216,58 +1258,130 @@ class GroundedRagEngine:
                 query=query
             )
 
-        # 2.5 Intent-Based Detail Retrieval (Progressive Disclosure)
-        # Directly answer specific detail inquiries (fee, documents, submission, turnaround, complete process, age follow-up)
+        # 2.5 Intent-Based Detail Retrieval (Progressive Disclosure via Grounded RAG + LLM)
         if intent_res.detail_type not in ["procedure", "emergency"]:
-            detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type, history=history)
-            if detail_msg:
-                is_short_followup = len((query or "").split()) <= 3 and intent_res.service_id and intent_res.service_id != "other_engineering"
-                search_q = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}" if is_short_followup else query
-                citations = self._retrieve_filtered_citations(search_q, department_id=dept, service_id=intent_res.service_id, top_k=4)
-                if not citations and not is_short_followup and intent_res.service_id and intent_res.service_id != "other_engineering":
-                    svc_query = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}"
-                    citations = self._retrieve_filtered_citations(svc_query, department_id=dept, service_id=intent_res.service_id, top_k=4)
-                packet = self.match_official_form_packet(query, history=history, force=False)
-                if packet and not any(c.url == packet.pdf_download_url for c in citations):
-                    citations.insert(
-                        0,
-                        RagCitation(
-                            url=packet.pdf_download_url,
-                            title=packet.form_title,
-                            category="Application Form",
-                            department_id="engineering",
-                            relevance_score=1.0,
-                            excerpt=f"Official Township Application Form: {packet.form_title}. Form Code: {packet.form_code}. Download: {packet.pdf_download_url}",
-                            visibility="public",
-                            document_type="application_form",
-                            service=packet.form_code,
-                            verification_status="verified"
-                        )
-                    )
-                if not citations:
+            q_low_detail = (query or "").lower()
+            if (
+                intent_res.service_id == "other_engineering"
+                and len(q_low_detail.split()) <= 7
+                and not any(w in q_low_detail for w in ["major subdivision", "variance", "guaranteed approval"])
+            ):
+                return RagResult(
+                    answer=(
+                        "Which Edison Township Engineering permit or service are you asking about "
+                        "(for example: Tree Removal, Soil Importation/Exportation, Plot Grading, Site Improvement, Sewer Connection, or Flood Zone Determination)?"
+                    ),
+                    citations=[],
+                    grounded=False,
+                    query=query,
+                    form_packet=None,
+                    options=[]
+                )
+            if intent_res.service_id == "other_engineering":
+                return RagResult(
+                    answer=(
+                        "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
+                        "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                        "or contact the Division of Engineering directly."
+                    ),
+                    citations=[],
+                    grounded=False,
+                    query=query,
+                    form_packet=None,
+                    options=[]
+                )
+            is_short_followup = len((query or "").split()) <= 3 and intent_res.service_id and intent_res.service_id != "other_engineering"
+            search_q = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}" if is_short_followup else query
+            citations = self._retrieve_filtered_citations(
+                search_q,
+                department_id=dept,
+                service_id=intent_res.service_id,
+                top_k=4,
+                include_flowcharts=True,
+            )
+            if not citations and not is_short_followup:
+                svc_query = f"{intent_res.service_id.replace('_', ' ')} {intent_res.detail_type.replace('_', ' ')} {query}"
+                citations = self._retrieve_filtered_citations(
+                    svc_query,
+                    department_id=dept,
+                    service_id=intent_res.service_id,
+                    top_k=4,
+                    include_flowcharts=True,
+                )
+            packet = self.match_official_form_packet(
+                query,
+                history=history,
+                force=(
+                    intent_res.intent_type == "form_request"
+                    or intent_res.detail_type == "application_count"
+                    or intent_res.service_id in ["sewer_connection", "flood_zone", "plot_grading", "site_improvement"]
+                ),
+            )
+            if intent_res.detail_type == "application_count":
+                # Only treat citations as supporting application-count if they contain explicit evidence on single vs. separate applications
+                app_count_patterns = (
+                    "separate application", "one application", "single application",
+                    "per tree", "each tree", "multiple trees", "number of trees",
+                    "separate permit", "one permit per"
+                )
+                supporting = [
+                    c for c in citations
+                    if any(p in (c.excerpt or "").lower() for p in app_count_patterns)
+                    and "machine-readable text could not be extracted" not in (c.excerpt or "").lower()
+                ]
+                if not supporting:
                     return RagResult(
                         answer=(
-                            "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
-                            "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
-                            "or contact the Division of Engineering directly."
+                            "I could not verify from the available official Township of Edison documents whether removing multiple trees "
+                            "requires one combined application or separate applications.\n\n"
+                            "The official Tree Removal Permit Application is a scanned PDF without machine-readable text, and the "
+                            "Permit Flow Chart does not specify application count. You can preview or download the official application "
+                            "below, and please confirm directly with the Division of Engineering before submitting."
                         ),
                         citations=[],
                         grounded=False,
                         query=query,
                         form_packet=packet,
-                        options=self._determine_step_options(detail_msg, packet)
+                        options=[]
                     )
+                citations = supporting
+            if not citations:
                 return RagResult(
-                    answer=detail_msg,
-                    citations=citations,
-                    grounded=True,
+                    answer=(
+                        "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
+                        "Please check the official [Township of Edison Document Center](https://www.edisonnj.org/document_center/index.php) "
+                        "or contact the Division of Engineering directly."
+                    ),
+                    citations=[],
+                    grounded=False,
                     query=query,
                     form_packet=packet,
-                    options=self._determine_step_options(detail_msg, packet)
+                    options=[]
                 )
+            dept_config = registry.get_department(dept)
+            dept_name = dept_config.name if dept_config else "Department of Engineering"
+            answer = llm_client.generate_answer(
+                query=query,
+                citations=citations,
+                history=history,
+                department_name=dept_name,
+            )
+            return RagResult(
+                answer=answer,
+                citations=citations,
+                grounded=True,
+                query=query,
+                form_packet=packet,
+                options=[]
+            )
 
-        # 3. Check for multi-turn tree removal procedural guidance (Verified Service)
-        if intent_res.service_id == "tree_removal":
+        # 3. Check for multi-turn tree removal procedural guidance (only for procedural yes/no turns, not specific factual questions)
+        q_low_check = query.lower().strip()
+        is_specific_question = (
+            "?" in q_low_check
+            or any(w in q_low_check for w in ["separate", "multiple", "how many", "three", "two", "qualify", "qualifies", "fee", "cost"])
+        )
+        if intent_res.service_id == "tree_removal" and not is_specific_question:
             tree_flow_res = self.handle_tree_removal_flow(query, history=history)
             if tree_flow_res:
                 msg, packet = tree_flow_res
@@ -1299,7 +1413,7 @@ class GroundedRagEngine:
                 )
 
         # 4. Check for multi-turn soil import/export procedural guidance (Verified Service)
-        if intent_res.service_id in ["soil_import", "soil_export", "soil_movement"]:
+        if intent_res.service_id in ["soil_import", "soil_export", "soil_movement"] and not is_specific_question:
             soil_flow_res = self.handle_soil_flow(query, history=history)
             if soil_flow_res:
                 msg, packet = soil_flow_res
@@ -1330,152 +1444,43 @@ class GroundedRagEngine:
                     options=self._determine_step_options(msg, packet)
                 )
 
-        # 5. Emergency inquiry detail fallback
-        if intent_res.detail_type == "emergency":
-            detail_msg = service_intent_service.get_detail_response(intent_res.service_id, intent_res.detail_type)
-            if detail_msg:
-                packet = self.match_official_form_packet(query, history=history, force=True)
-                citations = []
-                if packet:
-                    citations.append(
-                        RagCitation(
-                            url=packet.pdf_download_url,
-                            title=packet.form_title,
-                            category="Application Form",
-                            department_id="engineering",
-                            relevance_score=1.0,
-                            excerpt=f"Official Township Application Form: {packet.form_title}. Form Code: {packet.form_code}. Download: {packet.pdf_download_url}",
-                            visibility="public",
-                            document_type="application_form",
-                            service=packet.form_code,
-                            verification_status="verified"
-                        )
-                    )
+        # 5. Emergency inquiry verification gate (evidence comes from Step 6 RAG + Permit Flow Charts)
+        if intent_res.detail_type == "emergency" and intent_res.service_id == "tree_removal":
+            if not self._has_verified_emergency_tree_evidence(department_id or "engineering"):
                 return RagResult(
-                    answer=detail_msg,
-                    citations=citations,
-                    grounded=True,
+                    answer=self._build_unverified_emergency_tree_msg(),
+                    citations=[],
+                    grounded=False,
                     query=query,
-                    form_packet=packet,
-                    options=self._determine_step_options(detail_msg, packet)
+                    form_packet=None,
+                    options=[]
                 )
 
         # 6. Search vector store
         dept = department_id if department_id else "engineering"
+        from .services.service_intent_service import service_intent_service
+        search_query = service_intent_service.normalize_typos(query)
         raw_citations: List[RagCitation] = vector_store.search(
-            query=query,
+            query=search_query,
             department_id=dept,
             top_k=6,
             threshold=SIMILARITY_THRESHOLD
         )
 
-        # Filter out internal documents from resident citations and deduplicate by URL
-        # Prompt Section 4: Correct source matching: Grounded citations must match the specific service requested
-        seen_urls = set()
-        citations = []
-        for c in raw_citations:
-            if getattr(c, "visibility", "public") == "internal":
-                continue
-            if "permit flow chart" in c.title.lower() or "flowchart" in getattr(c, "category", "").lower() or "permit_flow_charts" in c.url.lower():
-                continue
-            
-            c_doc_name = (c.title + " " + getattr(c, "service", "")).lower()
-            if intent_res.service_id == "tree_removal":
-                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "soil"]):
-                    continue
-            elif intent_res.service_id in ["soil_import", "soil_export", "soil_movement"]:
-                if any(w in c_doc_name for w in ["zoning", "road open", "excavat", "sewer", "tree"]):
-                    continue
-            
-            base_url = c.url.split("#")[0].split("?")[0]
-            if base_url in seen_urls:
-                continue
-            seen_urls.add(base_url)
-            citations.append(c)
+        # Filter out off-service documents, deduplicate canonical URLs, and include official Permit Flow Charts as evidence
+        citations = self._filter_citations(
+            raw_citations,
+            service_id=intent_res.service_id,
+            top_k=6,
+            include_flowcharts=True,
+        )
 
         dept_config = registry.get_department(dept)
         dept_name = dept_config.name if dept_config else "Department of Engineering"
 
-        # If no citations found above threshold
+        # If no citations found above threshold, never invent hardcoded municipal facts or synthetic citations
         if not citations:
-            if intent_res.service_id == "tree_removal":
-                packet = self.match_official_form_packet("tree removal", force=True)
-                p_cits = [
-                    RagCitation(
-                        url=packet.pdf_download_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id=dept,
-                        relevance_score=1.0,
-                        excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service=packet.form_code,
-                        verification_status="verified",
-                    )
-                ] if packet else []
-                return RagResult(
-                    answer=(
-                        "Under Township of Edison Tree Protection regulations (Chapter 25-8), an approved **Tree Removal Permit** is required before removing mature trees on your property.\n\n"
-                        "• **Filing Fee:** $25 standard residential fee (waived for seniors aged 62+ with valid proof of age; $200 with Board approval / subdivision).\n"
-                        "• **Required Attachments:** Property survey or Tax Map sketch showing trees marked for removal, written statement of removal reasons, and site marking with ribbon or paint."
-                    ),
-                    citations=p_cits,
-                    grounded=bool(p_cits),
-                    query=query,
-                    form_packet=packet,
-                    options=[]
-                )
-            if intent_res.service_id == "soil_import":
-                packet = self.match_official_form_packet("soil import", force=True)
-                p_cits = [
-                    RagCitation(
-                        url=packet.pdf_download_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id=dept,
-                        relevance_score=1.0,
-                        excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service=packet.form_code,
-                        verification_status="verified",
-                    )
-                ] if packet else []
-                return RagResult(
-                    answer=self._build_soil_import_required_msg(),
-                    citations=p_cits,
-                    grounded=bool(p_cits),
-                    query=query,
-                    form_packet=packet,
-                    options=[]
-                )
-            if intent_res.service_id == "soil_export":
-                packet = self.match_official_form_packet("soil export", force=True)
-                p_cits = [
-                    RagCitation(
-                        url=packet.pdf_download_url,
-                        title=packet.form_title,
-                        category="Application Form",
-                        department_id=dept,
-                        relevance_score=1.0,
-                        excerpt=f"Official Township Application Form: {packet.form_title}. Download: {packet.pdf_download_url}",
-                        visibility="public",
-                        document_type="application_form",
-                        service=packet.form_code,
-                        verification_status="verified",
-                    )
-                ] if packet else []
-                return RagResult(
-                    answer=self._build_soil_export_required_msg(),
-                    citations=p_cits,
-                    grounded=bool(p_cits),
-                    query=query,
-                    form_packet=packet,
-                    options=[]
-                )
-            # No official evidence retrieved for this Engineering inquiry -> never fabricate or mark grounded
-            if intent_res.service_id in ["other_engineering"]:
+            if intent_res.service_id in ["tree_removal", "soil_import", "soil_export", "soil_movement", "other_engineering"]:
                 return RagResult(
                     answer=(
                         "I could not verify that specific information from the available official Edison Township Engineering documents.\n\n"
@@ -1484,7 +1489,9 @@ class GroundedRagEngine:
                     ),
                     citations=[],
                     grounded=False,
-                    query=query
+                    query=query,
+                    form_packet=None,
+                    options=[]
                 )
 
             return RagResult(
@@ -1523,11 +1530,17 @@ class GroundedRagEngine:
 
         is_out = "out of our context" in (answer or "").lower()
         is_unverified = "could not be verified from the available official" in (answer or "").lower()
+        packet = None if (is_out or is_unverified) else self.match_official_form_packet(
+            query,
+            history=history,
+            force=(intent_res.intent_type == "form_request"),
+        )
         return RagResult(
             answer=answer,
             citations=[] if is_out else citations,
             grounded=bool(citations) and not is_out and not is_unverified,
-            query=query
+            query=query,
+            form_packet=packet,
         )
 
 rag_engine = GroundedRagEngine()

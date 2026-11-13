@@ -115,7 +115,12 @@ class ConfigurableWebCrawler:
         url_validator: Optional[Callable[[str], str]] = None,
     ):
         self.config = config
+        self._pinned_ips: Dict[str, str] = {}
         self.session = session or requests.Session()
+        if isinstance(self.session, requests.Session):
+            adapter = PinnedIPAdapter(pinned_ips=self._pinned_ips)
+            self.session.mount("http://", adapter)
+            self.session.mount("https://", adapter)
         self.session.headers.update({"User-Agent": self.config.user_agent})
         self._custom_validator = url_validator
         self.validate_url = url_validator or validate_safe_url
@@ -182,7 +187,10 @@ class ConfigurableWebCrawler:
                     if self._custom_validator is not None:
                         self._custom_validator(hop_url)
                     else:
-                        resolve_and_validate_url(hop_url)
+                        _, validated_ip = resolve_and_validate_url(hop_url)
+                        hop_host = (urlparse(hop_url).hostname or "").strip().lower().rstrip(".")
+                        if hop_host and validated_ip:
+                            self._pinned_ips[hop_host] = validated_ip
                     resp = self.session.get(
                         hop_url,
                         headers=headers,
@@ -361,6 +369,16 @@ class ConfigurableWebCrawler:
 
                 if is_ext_pdf and not is_pdf:
                     # External non-PDF pages are not crawled
+                    result.skipped_urls.append((final_url, "external non-PDF blocked"))
+                    continue
+
+                if is_html and not self._is_domain_allowed(final_url):
+                    # Reject HTML responses whose final redirect destination is outside allowed_domains
+                    result.skipped_urls.append((final_url, "redirected outside allowed_domains"))
+                    continue
+
+                if is_pdf and not self._is_domain_allowed(final_url) and not self.config.follow_external_pdfs:
+                    result.skipped_urls.append((final_url, "external PDF blocked by follow_external_pdfs=False"))
                     continue
 
                 max_bytes = self.config.max_pdf_bytes if is_pdf else self.config.max_html_bytes

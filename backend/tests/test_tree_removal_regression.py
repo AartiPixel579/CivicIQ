@@ -11,7 +11,9 @@ from backend.app.flow_engine import flow_engine
 from backend.app.services.form_matcher import form_matcher
 
 
-class TestTreeRemovalRegression(unittest.TestCase):
+from backend.tests.offline_llm_helper import OfflineLLMTestCase
+
+class TestTreeRemovalRegression(OfflineLLMTestCase):
     def setUp(self):
         # Clear engine sessions between tests
         flow_engine.sessions.clear()
@@ -249,11 +251,12 @@ class TestTreeRemovalRegression(unittest.TestCase):
             message="I need a road-opening permit.",
             department_id="engineering"
         ))
-        self.assertIn("This service hasn't been configured yet", res.message)
         self.assertIsNone(res.active_flow_id)
         self.assertNotIn("tree removal", res.message.lower())
         self.assertNotIn("arborist", res.message.lower())
         self.assertNotIn("step_removing_trees_check", str(res))
+        self.assertIsNotNone(res.form_packet)
+        self.assertEqual(res.form_packet.form_file, "RoadOpenApp.pdf")
 
     # --------------------------------------------------------------------------
     # Test 12: Multi-turn Context Bleed: Road Opening followed by Tree Removal
@@ -271,7 +274,7 @@ class TestTreeRemovalRegression(unittest.TestCase):
             message="I need to dig in the street for utility connection and need the road opening application form.",
             department_id="engineering"
         ))
-        self.assertIn("This service hasn't been configured yet", r1.message)
+        self.assertIsNone(r1.active_flow_id)
         self.assertIsNotNone(r1.form_packet)
         self.assertEqual(r1.form_packet.form_file, "RoadOpenApp.pdf")
 
